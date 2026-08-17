@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Этап 2: Контроль готовности и ETL</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-4">
+    <div class="container" style="max-width: 800px;">
+        <div class="card p-4 shadow-sm border-0 rounded-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold mb-0">⚙️ Этап 2: ETL и Контроль готовности</h4>
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm">← На главную</a>
+            </div>
+            <p class="text-muted small">Проверка наличия файлов по всем менеджерам и запуск нормализации данных (UNPIVOT + слияние с 1С).</p>
+
+            <div class="alert alert-info py-2 small">
+                Все модули нормализации готовы к обработке.
+            </div>
+
+            <div class="d-flex gap-2 my-3">
+                <button class="btn btn-warning fw-bold text-dark">🚀 Запустить обработку (ETL)</button>
+                <a href="{% url 'compare_versions' %}" class="btn btn-outline-primary fw-bold">📊 Сравнение срезов</a>
+            </div>
+
+            <div class="pt-3 border-top text-end">
+                <a href="{% url 'dashboard' %}" class="btn btn-success btn-sm fw-bold">Перейти к дашборду →</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

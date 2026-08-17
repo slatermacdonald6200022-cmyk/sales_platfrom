@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ТСР | Загрузка исходных данных</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --tsr-navy: #0B2545;
+            --tsr-blue: #134074;
+            --tsr-red: #D90429;
+            --tsr-red-hover: #b00320;
+            --tsr-bg: #F3F5F9;
+            --tsr-border: #E2E8F0;
+        }
+
+        body {
+            background-color: var(--tsr-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #1E293B;
+        }
+
+        .tsr-navbar {
+            background-color: var(--tsr-navy);
+            border-bottom: 3px solid var(--tsr-red);
+        }
+
+        .tsr-logo-badge {
+            background-color: var(--tsr-red);
+            color: #ffffff;
+            font-weight: 900;
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            font-size: 14px;
+        }
+
+        .card-custom {
+            border: 1px solid var(--tsr-border);
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+        }
+
+        .manager-row {
+            background-color: #FAFAFB;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 10px 14px;
+            transition: all 0.2s ease;
+        }
+        .manager-row:hover {
+            background-color: #F1F5F9;
+            border-color: #CBD5E1;
+        }
+
+        .btn-tsr-accent {
+            background-color: var(--tsr-red);
+            color: #ffffff;
+            border: none;
+            font-weight: 700;
+        }
+        .btn-tsr-accent:hover {
+            background-color: var(--tsr-red-hover);
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar tsr-navbar py-2 mb-4">
+        <div class="container px-4 d-flex justify-content-between align-items-center">
+            <a class="navbar-brand d-flex align-items-center gap-2 text-white m-0 text-decoration-none" href="{% url 'home' %}">
+                <span class="tsr-logo-badge">ТСР</span>
+                <span class="fw-bold tracking-tight">ВОСТОК ТОРМОЗНЫЕ СИСТЕМЫ</span>
+            </a>
+
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-white-50 small">Менеджер: <strong class="text-white">{{ request.user.profile.manager_name|default:request.user.username }}</strong></span>
+                <a href="{% url 'profile' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">Профиль</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container px-4 mb-5" style="max-width: 920px;">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="fw-bold mb-1" style="color: var(--tsr-navy);">📁 Этап 1: Загрузка исходных данных</h3>
+                <p class="text-muted small mb-0">Прикрепите файлы планов менеджеров (10 шт.) и фактическую выгрузку 1С:ERP.</p>
+            </div>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                ← На главную
+            </a>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-success py-2 small mb-4 rounded-3 text-center border-0 shadow-sm">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="card card-custom p-4 mb-4 border-start border-4 border-primary">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="p-2 rounded-3 me-3 fs-5" style="background-color: #EBF3FA; color: var(--tsr-blue);">
+                        🏢
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0" style="color: var(--tsr-navy);">1. Фактические продажи из 1С:ERP</h5>
+                        <div class="text-muted small">Единая выгрузка реальных отгрузок за отчетный период</div>
+                    </div>
+                </div>
+                <input type="file" name="file_1c" class="form-control" accept=".xlsx, .xls">
+            </div>
+
+            <div class="card card-custom p-4 mb-4 border-start border-4 border-danger">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="p-2 rounded-3 me-3 fs-5" style="background-color: #FDE8EA; color: var(--tsr-red);">
+                        📊
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0" style="color: var(--tsr-navy);">2. Планы продаж менеджеров (10 файлов)</h5>
+                        <div class="text-muted small">Файлы Excel со структурой AOP, Forecast и номенклатурой</div>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    {% for mgr in managers %}
+                        <div class="col-12">
+                            <div class="manager-row d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                                <div class="fw-semibold small text-dark" style="min-width: 240px;">
+                                    <span class="badge bg-light text-dark border me-2">{{ forloop.counter }}</span>
+                                    {{ mgr.name }}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <input type="file"
+                                           name="file_manager_{{ mgr.id }}"
+                                           class="form-control form-control-sm"
+                                           accept=".xlsx, .xls">
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card card-custom p-3 d-flex flex-row justify-content-between align-items-center">
+                <a href="{% url 'readiness' %}" class="btn btn-outline-secondary btn-sm">
+                    К статусу готовности $\rightarrow$
+                </a>
+                <button type="submit" class="btn btn-tsr-accent px-4 py-2">
+                    🚀 Сохранить и перейти к обработке (ETL)
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+
+</body>
+</html>

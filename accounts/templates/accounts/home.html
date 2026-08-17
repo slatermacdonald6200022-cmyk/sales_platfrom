@@ -1,46 +1,171 @@
-{% extends "accounts/base.html" %}
-{% block title %}Главная | Sales Analytics{% endblock %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Главная панель | Анализ и планирование продаж</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #333333;
+        }
+        .navbar-custom {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .user-badge-link {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 50px;
+            padding: 4px 14px 4px 6px;
+            text-decoration: none;
+            color: #1e293b;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.2s ease-in-out;
+        }
+        .user-badge-link:hover {
+            background-color: #e2e8f0;
+            transform: translateY(-1px);
+        }
+        .avatar-img-mini {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .avatar-initial-mini {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .dashboard-card {
+            border: none;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            height: 100%;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        }
+    </style>
+</head>
+<body>
 
-{% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h2 class="fw-bold text-dark mb-1">Система аналитики и нормализации продаж</h2>
-        <p class="text-muted">Выберите нужный раздел для работы с планами и фактическими отгрузками.</p>
-    </div>
-</div>
+    <nav class="navbar navbar-custom py-2 mb-4">
+        <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
 
-<div class="row g-4">
-    <div class="col-md-4">
-        <div class="card card-custom p-4 h-100 text-center">
-            <div class="mb-3 text-primary"><i class="bi bi-cloud-arrow-up-fill fs-1"></i></div>
-            <h4 class="fw-bold">1. Загрузка данных</h4>
-            <p class="text-muted small">Прикрепление индивидуальных планов 10 менеджеров и общей выгрузки из 1С ERP.</p>
-            <div class="mt-auto">
-                <a href="{% url 'upload_page' %}" class="btn btn-primary w-100">Перейти к загрузке</a>
+            <a class="navbar-brand fw-bold text-primary d-flex align-items-center mb-0" href="{% url 'home' %}">
+                <span class="fs-5">📈 Автоматизация отчетности</span>
+            </a>
+
+            <div class="d-flex align-items-center gap-3">
+                <a href="{% url 'profile' %}" class="user-badge-link" title="Перейти в личный кабинет">
+                    <div class="me-2">
+                        {% if request.user.profile.avatar %}
+                            <img src="{{ request.user.profile.avatar.url }}" alt="Avatar" class="avatar-img-mini border">
+                        {% else %}
+                            <div class="avatar-initial-mini">
+                                {{ request.user.profile.manager_name|default:request.user.username|slice:":1"|upper }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <span class="fw-semibold small">
+                        {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
+                    </span>
+                </a>
+
+                <form method="post" action="{% url 'logout' %}" class="d-inline mb-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                        Выйти
+                    </button>
+                </form>
             </div>
+
         </div>
+    </nav>
+
+    <div class="container px-4">
+
+        <div class="bg-white p-4 rounded-4 shadow-sm mb-4 border">
+            <h3 class="fw-bold mb-1">
+                Здравствуйте, {{ request.user.profile.manager_name|default:request.user.username }}! 👋
+            </h3>
+            <p class="text-muted mb-0 small">
+                Система аналитической отчетности и нормализации индивидуальных планов продаж.
+            </p>
+        </div>
+
+        <div class="row g-4 mb-4">
+
+            <div class="col-md-4">
+                <div class="card dashboard-card p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="p-2 bg-primary-subtle text-primary rounded-3 me-3 fs-4">
+                            📊
+                        </div>
+                        <h5 class="card-title fw-bold mb-0">Дашборд</h5>
+                    </div>
+                    <p class="card-text text-muted small">
+                        Интерактивная сводка ключевых показателей выполнения плана продаж, выручки и маржинальности.
+                    </p>
+                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm mt-auto w-100 fw-bold">
+                        Открыть дашборд →
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card dashboard-card p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="p-2 bg-success-subtle text-success rounded-3 me-3 fs-4">
+                            📁
+                        </div>
+                        <h5 class="card-title fw-bold mb-0">Планы продаж</h5>
+                    </div>
+                    <p class="card-text text-muted small">
+                        Консолидированные витрины данных по менеджерам: срезы AOP, Forecast и фактические объемы.
+                    </p>
+                    <button class="btn btn-outline-secondary btn-sm mt-auto w-100" disabled>
+                        В разработке
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card dashboard-card p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="p-2 bg-warning-subtle text-warning rounded-3 me-3 fs-4">
+                            ⚙️
+                        </div>
+                        <h5 class="card-title fw-bold mb-0">ETL-пайплайн</h5>
+                    </div>
+                    <p class="card-text text-muted small">
+                        Скрипты нормализации файлов Excel и слияние со структурой 1С:Предприятие.
+                    </p>
+                    <button class="btn btn-outline-secondary btn-sm mt-auto w-100" disabled>
+                        В разработке
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
     </div>
 
-    <div class="col-md-4">
-        <div class="card card-custom p-4 h-100 text-center">
-            <div class="mb-3 text-warning"><i class="bi bi-gear-wide-connected fs-1"></i></div>
-            <h4 class="fw-bold">2. Обработка ETL</h4>
-            <p class="text-muted small">Запуск скриптов нормализации Unpivot, слияния факта и выгрузка итогового датасета.</p>
-            <div class="mt-auto">
-                <a href="{% url 'readiness_page' %}" class="btn btn-warning w-100 text-dark fw-semibold">Панель запуска ETL</a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="card card-custom p-4 h-100 text-center">
-            <div class="mb-3 text-success"><i class="bi bi-pie-chart-fill fs-1"></i></div>
-            <h4 class="fw-bold">3. Дашборд продаж</h4>
-            <p class="text-muted small">Интерактивный срез: сравнение планов AOP, прогнозов и факта 1С по клиентам.</p>
-            <div class="mt-auto">
-                <a href="{% url 'compare_page' %}" class="btn btn-success w-100">Открыть дашборд</a>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+</body>
+</html>
