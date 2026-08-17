@@ -7,25 +7,24 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
-            --tsr-navy: #0B2545;
-            --tsr-blue: #134074;
-            --tsr-red: #D90429;
-            --tsr-red-hover: #b00320;
-            --tsr-bg: #F3F5F9;
-            --tsr-text-dark: #0D1B2A;
-            --tsr-border: #E2E8F0;
+            --brand-navy: #0B2545;
+            --brand-blue: #134074;
+            --brand-red: #D90429;
+            --brand-red-hover: #b00320;
+            --brand-bg: #F3F5F9;
+            --brand-text-dark: #0D1B2A;
+            --brand-border: #E2E8F0;
         }
 
         body {
-            background-color: var(--tsr-bg);
+            background-color: var(--brand-bg);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: var(--tsr-text-dark);
+            color: var(--brand-text-dark);
         }
 
-        /* Корпоративная шапка */
-        .tsr-navbar {
-            background-color: var(--tsr-navy);
-            border-bottom: 3px solid var(--tsr-red);
+        .brand-navbar {
+            background-color: var(--brand-navy);
+            border-bottom: 3px solid var(--brand-red);
             box-shadow: 0 2px 10px rgba(11, 37, 69, 0.15);
         }
 
@@ -59,7 +58,7 @@
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: var(--tsr-red);
+            background: var(--brand-red);
             color: #ffffff;
             display: flex;
             align-items: center;
@@ -69,10 +68,10 @@
         }
 
         .step-card {
-            border: 1px solid var(--tsr-border);
+            border: 1px solid var(--brand-border);
             border-radius: 12px;
             background: #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
             transition: all 0.25s ease-in-out;
             height: 100%;
             display: flex;
@@ -83,47 +82,46 @@
         .step-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 10px 25px rgba(11, 37, 69, 0.1);
-            border-top-color: var(--tsr-red);
+            border-top-color: var(--brand-red);
         }
 
         .step-num {
-            color: var(--tsr-red);
+            color: var(--brand-red);
             font-weight: 800;
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        .btn-tsr-primary {
-            background-color: var(--tsr-navy);
+        .btn-brand-primary {
+            background-color: var(--brand-navy);
             color: #ffffff;
             border: none;
             font-weight: 600;
         }
-        .btn-tsr-primary:hover {
-            background-color: var(--tsr-blue);
+        .btn-brand-primary:hover {
+            background-color: var(--brand-blue);
             color: #ffffff;
         }
 
-        .btn-tsr-accent {
-            background-color: var(--tsr-red);
+        .btn-brand-accent {
+            background-color: var(--brand-red);
             color: #ffffff;
             border: none;
             font-weight: 600;
         }
-        .btn-tsr-accent:hover {
-            background-color: var(--tsr-red-hover);
+        .btn-brand-accent:hover {
+            background-color: var(--brand-red-hover);
             color: #ffffff;
         }
     </style>
 </head>
 <body>
 
-    <nav class="navbar tsr-navbar py-2 mb-4">
+    <nav class="navbar brand-navbar py-2 mb-4">
         <div class="container px-4 d-flex justify-content-between align-items-center">
 
-            <a class="navbar-brand d-flex align-items-center gap-2 text-white m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="fs-5">📈</span>
+            <a class="navbar-brand d-flex align-items-center text-white m-0 text-decoration-none" href="{% url 'home' %}">
                 <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
             </a>
 
@@ -131,7 +129,7 @@
                 <a href="{% url 'profile' %}" class="user-badge-link" title="Личный кабинет">
                     <div class="me-2">
                         {% if request.user.profile.avatar %}
-                            <img src="{{ request.user.profile.avatar.url }}" alt="Avatar" class="avatar-img-mini">
+                            <img src="{{ request.user.profile.avatar.url }}" alt="Фото профиля" class="avatar-img-mini">
                         {% else %}
                             <div class="avatar-initial-mini">
                                 {{ request.user.profile.manager_name|default:request.user.username|slice:":1"|upper }}
@@ -146,7 +144,7 @@
                 <form method="post" action="{% url 'logout' %}" class="d-inline mb-0">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-light btn-sm rounded-pill px-3">
-                        Выйти
+                        Выход
                     </button>
                 </form>
             </div>
@@ -159,19 +157,19 @@
         <div class="bg-white p-4 rounded-3 shadow-sm mb-4 border-start border-4 border-primary">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                    <h4 class="fw-bold mb-1" style="color: var(--tsr-navy);">
-                        Добро пожаловать, {{ request.user.profile.manager_name|default:request.user.first_name|default:request.user.username }}!
-                    </h4>
+                    <h5 class="fw-bold mb-1" style="color: var(--brand-navy);">
+                        Пользователь: {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
+                    </h5>
                     <p class="text-muted mb-0 small">
-                        Корпоративная система планирования продаж, нормализации данных и аналитической отчетности.
+                        Автоматизированная система сбора, нормализации и консолидации планов продаж.
                     </p>
                 </div>
                 <div>
                     <span class="badge bg-light text-dark border px-3 py-2">
-                        Роль:
+                        Уровень доступа:
                         <strong class="text-primary">
                             {% if request.user.is_superuser %}
-                                Администратор
+                                Администратор системы
                             {% else %}
                                 {{ request.user.profile.get_role_display|default:"Менеджер" }}
                             {% endif %}
@@ -185,48 +183,45 @@
 
             <div class="col-md-4">
                 <div class="card step-card p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="step-num">Этап 01</span>
-                        <span class="fs-4">📁</span>
+                    <div class="mb-2">
+                        <span class="step-num">Модуль 01</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">Загрузка файлов</h5>
+                    <h5 class="card-title fw-bold text-dark">Реестр импорта файлов</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Централизованный импорт индивидуальных планов менеджеров (10 файлов) и актуальной выгрузки фактических отгрузок из 1С:ERP.
+                        Централизованный ввод индивидуальных планов продаж менеджеров и выгрузок фактической отгрузки из учетной системы 1С:ERP.
                     </p>
-                    <a href="{% url 'upload_files' %}" class="btn btn-tsr-primary btn-sm mt-3 w-100 py-2">
-                        Перейти к загрузке →
+                    <a href="{% url 'upload_files' %}" class="btn btn-brand-primary btn-sm mt-3 w-100 py-2">
+                        Перейти к импорту &rarr;
                     </a>
                 </div>
             </div>
 
             <div class="col-md-4">
                 <div class="card step-card p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="step-num">Этап 02</span>
-                        <span class="fs-4">⚙️</span>
+                    <div class="mb-2">
+                        <span class="step-num">Модуль 02</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">Обработка файлов</h5>
+                    <h5 class="card-title fw-bold text-dark">Обработка и нормализация (ETL)</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Автоматическая трансформация структуры (UNPIVOT), валидация номенклатуры и слияние плановых срезов с фактом 1С.
+                        Автоматическое развертывание широких таблиц (UNPIVOT), валидация номенклатурных позиций и слияние плановых срезов с фактом.
                     </p>
                     <a href="{% url 'readiness' %}" class="btn btn-outline-dark btn-sm mt-3 w-100 py-2 fw-semibold">
-                        Контроль и обработка →
+                        Контроль и обработка &rarr;
                     </a>
                 </div>
             </div>
 
             <div class="col-md-4">
                 <div class="card step-card p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="step-num">Этап 03</span>
-                        <span class="fs-4">📈</span>
+                    <div class="mb-2">
+                        <span class="step-num">Модуль 03</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">Дашборд аналитики</h5>
+                    <h5 class="card-title fw-bold text-dark">Аналитическая панель (BI)</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Интерактивная панель мониторинга: выполнение плана продаж, динамика выручки в CNY/RUB, маржинальность и срезы.
+                        Мониторинг ключевых показателей: выполнение планов AOP и Forecast, динамика выручки в валютах CNY/RUB и структура продаж.
                     </p>
-                    <a href="{% url 'dashboard' %}" class="btn btn-tsr-accent btn-sm mt-3 w-100 py-2">
-                        Открыть дашборд 📊
+                    <a href="{% url 'dashboard' %}" class="btn btn-brand-accent btn-sm mt-3 w-100 py-2">
+                        Открыть панель отчетов
                     </a>
                 </div>
             </div>

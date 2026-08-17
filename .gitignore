@@ -1,0 +1,21 @@
+# Виртуальное окружение
+.venv/
+venv/
+ENV/
+
+# Кэш Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# База данных и локальные файлы
+*.sqlite3
+db.sqlite3
+
+# Настройки IDE
+.idea/
+.vscode/
+
+# Медиа файлы пользователей
+media/avatars/*
+!media/avatars/.gitkeep

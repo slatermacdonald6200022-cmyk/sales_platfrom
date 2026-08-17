@@ -8,79 +8,82 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --tsr-navy: #0B2545;
-            --tsr-blue: #134074;
-            --tsr-red: #D90429;
-            --tsr-red-hover: #b00320;
-            --tsr-bg: #F3F5F9;
-            --tsr-border: #E2E8F0;
+            --brand-navy: #0B2545;
+            --brand-blue: #134074;
+            --brand-red: #D90429;
+            --brand-red-hover: #b00320;
+            --brand-bg: #F3F5F9;
+            --brand-border: #E2E8F0;
         }
 
         body {
-            background-color: var(--tsr-bg);
+            background-color: var(--brand-bg);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: #1E293B;
         }
 
-        .tsr-navbar {
-            background-color: var(--tsr-navy);
-            border-bottom: 3px solid var(--tsr-red);
+        .brand-navbar {
+            background-color: var(--brand-navy);
+            border-bottom: 3px solid var(--brand-red);
         }
 
-        /* KPI карточки точно как в DataLens */
+        .card-custom {
+            border: 1px solid var(--brand-border);
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+        }
+
+        .kpi-group-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--brand-navy);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--brand-border);
+        }
+
         .kpi-box {
             background: #ffffff;
-            border: 1px solid var(--tsr-border);
-            border-radius: 10px;
+            border: 1px solid var(--brand-border);
+            border-radius: 8px;
             padding: 14px 16px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
             height: 100%;
         }
-        .kpi-title {
+        .kpi-label {
             font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
+            font-weight: 600;
             color: #64748B;
-            letter-spacing: 0.5px;
             margin-bottom: 4px;
         }
-        .kpi-val {
+        .kpi-value {
             font-size: 20px;
             font-weight: 800;
-            color: var(--tsr-navy);
+            color: var(--brand-navy);
         }
-        .kpi-val.highlight {
-            color: var(--tsr-red);
+        .kpi-value.highlight-red {
+            color: var(--brand-red);
         }
-        .kpi-sub {
-            font-size: 11px;
-            color: #94A3B8;
+        .kpi-value.highlight-blue {
+            color: var(--brand-blue);
         }
 
-        .chart-card {
+        .chart-container-box {
             background: #ffffff;
-            border: 1px solid var(--tsr-border);
+            border: 1px solid var(--brand-border);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.03);
-            margin-bottom: 24px;
-        }
-
-        .table-custom th {
-            background-color: var(--tsr-navy);
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 600;
-            vertical-align: middle;
+            height: 100%;
         }
     </style>
 </head>
 <body>
 
-    <nav class="navbar tsr-navbar py-2 mb-4">
+    <nav class="navbar brand-navbar py-2 mb-4">
         <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
-            <a class="navbar-brand d-flex align-items-center gap-2 text-white m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="fs-5">📈</span>
+            <a class="navbar-brand d-flex align-items-center text-white m-0 text-decoration-none" href="{% url 'home' %}">
                 <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
             </a>
 
@@ -95,158 +98,192 @@
 
     <div class="container-fluid px-4 mb-5">
 
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
             <div>
-                <h4 class="fw-bold mb-0" style="color: var(--tsr-navy);">Аналитический дашборд продаж</h4>
-                <div class="text-muted small">Мониторинг выполнения планов AOP / Forecast и отгрузок 1С:ERP</div>
+                <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Аналитическая панель показателей продаж</h4>
+                <p class="text-muted small mb-0">Оперативный мониторинг плановых и фактических срезов в разрезе ответственных менеджеров, номенклатуры и контрагентов.</p>
             </div>
-            <div class="d-flex gap-2">
-                <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">← На главную</a>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                &larr; Главное меню
+            </a>
+        </div>
+
+        <div class="card card-custom p-4 mb-4 border-start border-4 border-primary">
+            <form id="dashboardFiltersForm" method="get" action="{% url 'dashboard' %}">
+                <div class="row g-3">
+
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Менеджер</label>
+                        <select name="manager" class="form-select form-select-sm" onchange="this.form.submit()">
+                            {% if is_admin %}
+                                <option value="all" {% if selected_manager == 'all' %}selected{% endif %}>Все менеджеры</option>
+                                {% for mgr in managers_list %}
+                                    <option value="{{ mgr.id }}" {% if selected_manager == mgr.id %}selected{% endif %}>
+                                        {{ mgr.name }}
+                                    </option>
+                                {% endfor %}
+                            {% else %}
+                                <option selected>{{ manager_name }}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Наименование / Артикул</label>
+                        <select name="product" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="all" {% if selected_product == 'all' %}selected{% endif %}>Вся номенклатура</option>
+                            {% for prod in products_list %}
+                                <option value="{{ prod }}" {% if selected_product == prod %}selected{% endif %}>
+                                    {{ prod }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Контрагент (Клиент)</label>
+                        <select name="client" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="all" {% if selected_client == 'all' %}selected{% endif %}>Все клиенты</option>
+                            {% for cl in clients_list %}
+                                <option value="{{ cl }}" {% if selected_client == cl %}selected{% endif %}>
+                                    {{ cl }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Выбранный период</label>
+                        <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                            {% for p in periods_list %}
+                                <option value="{{ p.id }}" {% if selected_period == p.id %}selected{% endif %}>
+                                    {{ p.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                </div>
+            </form>
+        </div>
+
+        <div class="card card-custom p-4 mb-4">
+            <div class="row g-4">
+
+                <div class="col-lg-4">
+                    <div class="kpi-group-title">Месячные показатели</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-primary">
+                                <div class="kpi-label">AOP за выбранный период, CNY</div>
+                                <div class="kpi-value">{{ kpi.month_aop_cny|default:"—" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-primary">
+                                <div class="kpi-label">Прогноз за выбранный период, CNY</div>
+                                <div class="kpi-value">{{ kpi.month_forecast_cny|default:"—" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-primary">
+                                <div class="kpi-label">Факт за выбранный период, CNY</div>
+                                <div class="kpi-value highlight-blue">{{ kpi.month_fact_cny|default:"—" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="kpi-group-title">Годовые показатели</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-secondary">
+                                <div class="kpi-label">AOP с начала года, CNY</div>
+                                <div class="kpi-value">{{ kpi.ytd_aop_cny|default:"—" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-secondary">
+                                <div class="kpi-label">Прогноз до конца года, CNY</div>
+                                <div class="kpi-value">{{ kpi.yee_forecast_cny|default:"—" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-secondary">
+                                <div class="kpi-label">Факт с начала года, CNY</div>
+                                <div class="kpi-value highlight-blue">{{ kpi.ytd_fact_cny|default:"—" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="kpi-group-title">Процентные показатели</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-danger">
+                                <div class="kpi-label">Факт / AOP за выбранный период, %</div>
+                                <div class="kpi-value highlight-red">{{ kpi.pct_month_fact_aop|default:"—" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-danger">
+                                <div class="kpi-label">Факт / AOP с начала года, %</div>
+                                <div class="kpi-value highlight-red">{{ kpi.pct_ytd_fact_aop|default:"—" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="kpi-box border-start border-3 border-danger">
+                                <div class="kpi-label">Факт / Прогноз с начала года, %</div>
+                                <div class="kpi-value highlight-red">{{ kpi.pct_ytd_fact_forecast|default:"—" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
-        <div class="row g-2 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="kpi-box border-start border-4 border-primary">
-                    <div class="kpi-title">Выполнение плана AOP (шт)</div>
-                    <div class="kpi-val highlight">{{ kpi.exec_aop_qty }}%</div>
-                    <div class="kpi-sub">Факт / AOP шт.</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="kpi-box border-start border-4 border-danger">
-                    <div class="kpi-title">Выполнение Forecast (шт)</div>
-                    <div class="kpi-val highlight">{{ kpi.exec_forecast_qty }}%</div>
-                    <div class="kpi-sub">Факт / Forecast шт.</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="kpi-box border-start border-4 border-success">
-                    <div class="kpi-title">Выполнение AOP (¥)</div>
-                    <div class="kpi-val">{{ kpi.exec_aop_cny }}%</div>
-                    <div class="kpi-sub">Выручка в юанях</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="kpi-box border-start border-4 border-warning">
-                    <div class="kpi-title">Выполнение Forecast (¥)</div>
-                    <div class="kpi-val">{{ kpi.exec_forecast_cny }}%</div>
-                    <div class="kpi-sub">Выручка в юанях</div>
-                </div>
-            </div>
+        <div class="row g-4">
 
-            <div class="col-6 col-md-3">
-                <div class="kpi-box">
-                    <div class="kpi-title">Продажи, факт, шт.</div>
-                    <div class="kpi-val">{{ kpi.fact_qty|floatformat:0 }}</div>
-                    <div class="kpi-sub">Отгрузки 1С</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="kpi-box">
-                    <div class="kpi-title">План (Forecast), шт.</div>
-                    <div class="kpi-val">{{ kpi.forecast_qty|floatformat:0 }}</div>
-                    <div class="kpi-sub">Скорректированный</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="kpi-box">
-                    <div class="kpi-title">Продажи, факт, ¥</div>
-                    <div class="kpi-val">{{ kpi.fact_cny|floatformat:0 }} ¥</div>
-                    <div class="kpi-sub">Без НДС</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="kpi-box">
-                    <div class="kpi-title">План (Forecast), ¥</div>
-                    <div class="kpi-val">{{ kpi.forecast_cny|floatformat:0 }} ¥</div>
-                    <div class="kpi-sub">Без НДС</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row g-3 mb-4">
             <div class="col-lg-8">
-                <div class="chart-card">
-                    <h6 class="fw-bold mb-3" style="color: var(--tsr-navy);">Динамика выполнения плана по месяцам (тыс. шт.)</h6>
-                    <div style="height: 300px;">
-                        <canvas id="monthlyTrendChart"></canvas>
+                <div class="chart-container-box">
+                    <h6 class="fw-bold mb-3" style="color: var(--brand-navy);">Динамика исполнения плановых ориентиров по периодам</h6>
+                    <div style="height: 320px;">
+                        <canvas id="dynamicsChart"></canvas>
                     </div>
                 </div>
             </div>
 
             <div class="col-lg-4">
-                <div class="chart-card">
-                    <h6 class="fw-bold mb-3" style="color: var(--tsr-navy);">Выполнение плана по менеджерам (%)</h6>
-                    <div style="height: 300px;">
-                        <canvas id="managersBarChart"></canvas>
+                <div class="chart-container-box">
+                    <h6 class="fw-bold mb-3" style="color: var(--brand-navy);">Исполнение прогнозов по направлениям</h6>
+                    <div style="height: 320px;">
+                        <canvas id="structureChart"></canvas>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="chart-card p-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold mb-0" style="color: var(--tsr-navy);">План-факт структура продаж по менеджерам</h6>
-                <a href="{% url 'compare_versions' %}" class="btn btn-outline-primary btn-sm fw-semibold">
-                    Сравнение срезов AOP/Forecast →
-                </a>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-hover table-bordered table-custom align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Менеджер</th>
-                            <th>План AOP (шт.)</th>
-                            <th>Forecast (шт.)</th>
-                            <th>Факт 1С (шт.)</th>
-                            <th>Выручка факт (¥)</th>
-                            <th>Отклонение (шт.)</th>
-                            <th>% Выполнения</th>
-                        </tr>
-                    </thead>
-                    <tbody class="small">
-                        {% for row in managers_table %}
-                            <tr>
-                                <td class="fw-bold">{{ row.name }}</td>
-                                <td>{{ row.aop }}</td>
-                                <td>{{ row.forecast }}</td>
-                                <td class="fw-semibold text-primary">{{ row.fact }}</td>
-                                <td>{{ row.cny }} ¥</td>
-                                <td class="text-danger fw-semibold">-{{ row.forecast|add:"-row.fact"|default:"50000" }}</td>
-                                <td>
-                                    {% if row.pct >= 90 %}
-                                        <span class="badge bg-success-subtle text-success border border-success">{{ row.pct }}%</span>
-                                    {% else %}
-                                        <span class="badge bg-warning-subtle text-warning border border-warning">{{ row.pct }}%</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
         </div>
 
     </div>
 
     <script>
-        // 1. График помесячной динамики
-        const ctxMonthly = document.getElementById('monthlyTrendChart').getContext('2d');
-        new Chart(ctxMonthly, {
+        const ctxDynamics = document.getElementById('dynamicsChart').getContext('2d');
+        new Chart(ctxDynamics, {
             type: 'bar',
             data: {
                 labels: {{ chart_labels|safe }},
                 datasets: [
                     {
-                        label: 'Факт 1С (тыс. шт)',
+                        label: 'Факт 1С:ERP (CNY)',
                         data: {{ chart_fact|safe }},
                         backgroundColor: '#D90429',
                         borderRadius: 4
                     },
                     {
-                        label: 'Forecast (тыс. шт)',
+                        label: 'Прогноз Forecast (CNY)',
                         data: {{ chart_forecast|safe }},
                         backgroundColor: '#134074',
                         borderRadius: 4
@@ -257,8 +294,7 @@
                         data: {{ chart_aop|safe }},
                         borderColor: '#0B2545',
                         borderWidth: 2,
-                        fill: false,
-                        tension: 0.3
+                        fill: false
                     }
                 ]
             },
@@ -269,33 +305,27 @@
                     legend: { position: 'top' }
                 },
                 scales: {
-                    y: { beginAtZero: false }
+                    y: { beginAtZero: true }
                 }
             }
         });
 
-        // 2. Горизонтальный график выполнения по менеджерам
-        const ctxMgr = document.getElementById('managersBarChart').getContext('2d');
-        new Chart(ctxMgr, {
-            type: 'bar',
+        const ctxStructure = document.getElementById('structureChart').getContext('2d');
+        new Chart(ctxStructure, {
+            type: 'doughnut',
             data: {
-                labels: {{ mgr_labels|safe }},
+                labels: ['Факт исполнения', 'Остаток плана'],
                 datasets: [{
-                    label: '% выполнения',
-                    data: {{ mgr_pcts|safe }},
-                    backgroundColor: '#134074',
-                    borderRadius: 4
+                    data: [0, 100],
+                    backgroundColor: ['#134074', '#E2E8F0'],
+                    borderWidth: 0
                 }]
             },
             options: {
-                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    x: { min: 70, max: 100 }
+                    legend: { position: 'bottom' }
                 }
             }
         });
