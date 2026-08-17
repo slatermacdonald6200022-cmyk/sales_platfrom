@@ -1,0 +1,90 @@
+{% extends "accounts/base.html" %}
+{% block title %}Дашборд продаж | Sales Analytics{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-pie-chart-fill text-success me-2"></i>Интерактивный дашборд продаж</h3>
+        <p class="text-muted mb-0">Сравнение планов AOP, прогнозов и фактических отгрузок.</p>
+    </div>
+    <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>На главную</a>
+</div>
+
+<div class="card card-custom p-3 mb-4">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label small fw-bold">Год:</label>
+            <select class="form-select form-select-sm">
+                <option selected>2026</option>
+                <option>2025</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold">Менеджер:</label>
+            <select class="form-select form-select-sm">
+                <option selected>Все менеджеры (10)</option>
+                <option>Царев Михаил</option>
+                <option>Хуснутдинов</option>
+                <option>Редько</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold">Клиент:</label>
+            <select class="form-select form-select-sm">
+                <option selected>Все клиенты</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary btn-sm w-100"><i class="bi bi-funnel me-1"></i>Применить срез</button>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-primary">
+            <span class="text-muted small">План AOP (Сумма)</span>
+            <h4 class="fw-bold mb-0">0 ₽</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-warning">
+            <span class="text-muted small">Прогноз</span>
+            <h4 class="fw-bold mb-0">0 ₽</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-success">
+            <span class="text-muted small">Факт 1С (Выручка)</span>
+            <h4 class="fw-bold mb-0">0 ₽</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-info">
+            <span class="text-muted small">% Выполнения</span>
+            <h4 class="fw-bold text-muted mb-0">0.0%</h4>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-8">
+        <div class="card card-custom p-4 text-center text-muted d-flex align-items-center justify-content-center" style="min-height: 260px;">
+            <div>
+                <i class="bi bi-bar-chart fs-1 mb-2 text-primary"></i>
+                <h6 class="fw-bold text-dark">Динамика: План AOP vs Факт 1С</h6>
+                <p class="small mb-0">Макет графика выполнения по месяцам.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-custom p-4 text-center text-muted d-flex align-items-center justify-content-center" style="min-height: 260px;">
+            <div>
+                <i class="bi bi-pie-chart fs-1 mb-2 text-success"></i>
+                <h6 class="fw-bold text-dark">Доли менеджеров</h6>
+                <p class="small mb-0">Макет круговой диаграммы распределения объема.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

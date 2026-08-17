@@ -1,0 +1,46 @@
+{% extends "accounts/base.html" %}
+{% block title %}Загрузка файлов | Sales Analytics{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-cloud-arrow-up text-primary me-2"></i>Загрузка файлов</h3>
+        <p class="text-muted mb-0">Слоты для загрузки планов продаж и сводной выгрузки 1С ERP.</p>
+    </div>
+    <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>На главную</a>
+</div>
+
+<div class="card card-custom p-4 mb-4 border-start border-4 border-success">
+    <div class="row align-items-center">
+        <div class="col-md-7">
+            <h5 class="fw-bold text-success mb-1"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Выгрузка фактических отгрузок (1C ERP)</h5>
+            <small class="text-muted">Статус: <span class="badge bg-secondary">Файл не выбран</span></small>
+        </div>
+        <div class="col-md-5 d-flex gap-2 justify-content-end">
+            <input type="file" class="form-control form-control-sm w-auto">
+            <button class="btn btn-success btn-sm"><i class="bi bi-upload me-1"></i>Загрузить 1С</button>
+        </div>
+    </div>
+</div>
+
+<h5 class="fw-bold mb-3"><i class="bi bi-people me-2"></i>Планы продаж (10 менеджеров)</h5>
+
+<div class="row g-3 mb-4">
+    {% for manager in managers_slots %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom p-3 h-100">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="fw-bold text-dark mb-0">{{ manager.name }}</h6>
+                <span class="badge {{ manager.badge_class }}">{{ manager.status }}</span>
+            </div>
+            <p class="text-muted small mb-3"><i class="bi bi-file-earmark-excel me-1"></i>{{ manager.file_name|default:"Файл еще не прикреплен" }}</p>
+            
+            <div class="mt-auto pt-2 border-top d-flex gap-2">
+                <input type="file" class="form-control form-control-sm">
+                <button class="btn btn-primary btn-sm"><i class="bi bi-upload"></i></button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

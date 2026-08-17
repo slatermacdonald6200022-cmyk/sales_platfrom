@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в систему | Sales Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 380px;
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.08);
+            background: #ffffff;
+        }
+    </style>
+</head>
+<body>
+<div class="card login-card p-4">
+    <div class="text-center mb-4">
+        <i class="bi bi-bar-chart-line-fill fs-1 text-primary"></i>
+        <h4 class="fw-bold mt-2 mb-1">Sales Analytics</h4>
+        <p class="text-muted small">Вход в систему отчетности</p>
+    </div>
+
+    {% if form.errors %}
+        <div class="alert alert-danger py-2 small text-center" role="alert">
+            Неверный логин или пароль.
+        </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label small fw-bold">Логин</label>
+            <input type="text" name="username" class="form-control form-control-sm" placeholder="Введите логин" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small fw-bold">Пароль</label>
+            <input type="password" name="password" class="form-control form-control-sm" placeholder="Введите пароль" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 fw-bold mt-2">Войти</button>
+    </form>
+</div>
+</body>
+</html>
