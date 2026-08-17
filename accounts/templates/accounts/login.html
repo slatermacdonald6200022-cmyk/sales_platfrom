@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход | Восток Тормозные Системы</title>
+    <title>Вход | Аналитическая система</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
-            --tsr-navy: #0B2545;
-            --tsr-red: #D90429;
-            --tsr-bg: #F3F5F9;
+            --brand-navy: #0B2545;
+            --brand-blue: #134074;
+            --brand-red: #D90429;
+            --brand-red-hover: #b00320;
+            --brand-bg: #F3F5F9;
         }
 
         body {
-            background-color: var(--tsr-bg);
+            background-color: var(--brand-bg);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             align-items: center;
@@ -29,27 +31,17 @@
             border-radius: 14px;
             box-shadow: 0 10px 35px rgba(11, 37, 69, 0.12);
             border: 1px solid #E2E8F0;
-            border-top: 4px solid var(--tsr-red);
+            border-top: 4px solid var(--brand-red);
         }
 
-        .tsr-logo-badge {
-            background-color: var(--tsr-red);
-            color: #ffffff;
-            font-weight: 900;
-            padding: 4px 10px;
-            border-radius: 4px;
-            letter-spacing: 1px;
-            font-size: 16px;
-        }
-
-        .btn-tsr-primary {
-            background-color: var(--tsr-navy);
+        .btn-brand-primary {
+            background-color: var(--brand-navy);
             color: #ffffff;
             border: none;
             font-weight: 700;
         }
-        .btn-tsr-primary:hover {
-            background-color: #134074;
+        .btn-brand-primary:hover {
+            background-color: var(--brand-blue);
             color: #ffffff;
         }
     </style>
@@ -59,11 +51,9 @@
 <div class="login-card p-4 m-3">
 
     <div class="text-center mb-4">
-        <div class="d-inline-flex align-items-center gap-2 mb-2">
-            <span class="tsr-logo-badge">ТСР</span>
-        </div>
-        <h5 class="fw-bold mb-1" style="color: var(--tsr-navy);">ВОСТОК ТОРМОЗНЫЕ СИСТЕМЫ</h5>
-        <div class="text-muted small">Система аналитической отчетности</div>
+        <div class="fs-1 mb-2">📈</div>
+        <h5 class="fw-bold mb-1" style="color: var(--brand-navy); letter-spacing: 0.5px;">АНАЛИТИЧЕСКАЯ СИСТЕМА</h5>
+        <div class="text-muted small">Вход в корпоративную платформу отчетности</div>
     </div>
 
     {% if form.errors %}
@@ -76,13 +66,13 @@
         {% csrf_token %}
         <div class="mb-3">
             <label class="form-label small fw-semibold text-muted">Логин</label>
-            <input type="text" name="username" class="form-control" placeholder="Введите логин менеджера" required autofocus>
+            <input type="text" name="username" class="form-control" placeholder="Введите ваш логин" required autofocus>
         </div>
         <div class="mb-4">
             <label class="form-label small fw-semibold text-muted">Пароль</label>
             <input type="password" name="password" class="form-control" placeholder="Введите пароль" required>
         </div>
-        <button type="submit" class="btn btn-tsr-primary w-100 py-2">
+        <button type="submit" class="btn btn-brand-primary w-100 py-2">
             Войти в систему →
         </button>
     </form>

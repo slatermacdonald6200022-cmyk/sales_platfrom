@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ТСР | Аналитическая платформа</title>
+    <title>Аналитическая платформа</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
@@ -13,34 +13,22 @@
             --tsr-red-hover: #b00320;
             --tsr-bg: #F3F5F9;
             --tsr-text-dark: #0D1B2A;
-            --tsr-text-muted: #64748B;
             --tsr-border: #E2E8F0;
         }
 
         body {
             background-color: var(--tsr-bg);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: var(--tsr-text-dark);
         }
 
-        /* Корпоративная шапка TSR */
+        /* Корпоративная шапка */
         .tsr-navbar {
             background-color: var(--tsr-navy);
             border-bottom: 3px solid var(--tsr-red);
             box-shadow: 0 2px 10px rgba(11, 37, 69, 0.15);
         }
 
-        .tsr-logo-badge {
-            background-color: var(--tsr-red);
-            color: #ffffff;
-            font-weight: 900;
-            padding: 3px 8px;
-            border-radius: 4px;
-            letter-spacing: 1px;
-            font-size: 14px;
-        }
-
-        /* Бейдж профиля пользователя */
         .user-badge-link {
             background-color: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -80,7 +68,6 @@
             font-size: 14px;
         }
 
-        /* Карточки этапов */
         .step-card {
             border: 1px solid var(--tsr-border);
             border-radius: 12px;
@@ -136,8 +123,8 @@
         <div class="container px-4 d-flex justify-content-between align-items-center">
 
             <a class="navbar-brand d-flex align-items-center gap-2 text-white m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="tsr-logo-badge">ТСР</span>
-                <span class="fw-bold tracking-tight">ВОСТОК ТОРМОЗНЫЕ СИСТЕМЫ</span>
+                <span class="fs-5">📈</span>
+                <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
             </a>
 
             <div class="d-flex align-items-center gap-3">
@@ -176,12 +163,19 @@
                         Добро пожаловать, {{ request.user.profile.manager_name|default:request.user.first_name|default:request.user.username }}!
                     </h4>
                     <p class="text-muted mb-0 small">
-                        Корпоративная платформа планирования продаж, нормализации данных и формирования управленческой отчетности.
+                        Корпоративная система планирования продаж, нормализации данных и аналитической отчетности.
                     </p>
                 </div>
                 <div>
                     <span class="badge bg-light text-dark border px-3 py-2">
-                        Роль: <strong class="text-primary">{{ request.user.profile.get_role_display|default:"Менеджер" }}</strong>
+                        Роль:
+                        <strong class="text-primary">
+                            {% if request.user.is_superuser %}
+                                Администратор
+                            {% else %}
+                                {{ request.user.profile.get_role_display|default:"Менеджер" }}
+                            {% endif %}
+                        </strong>
                     </span>
                 </div>
             </div>
@@ -211,9 +205,9 @@
                         <span class="step-num">Этап 02</span>
                         <span class="fs-4">⚙️</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">ETL и Готовность</h5>
+                    <h5 class="card-title fw-bold text-dark">Обработка файлов</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Автоматическая нормализация (UNPIVOT), валидация артикулов и слияние плановых срезов AOP/Forecast с базой 1С.
+                        Автоматическая трансформация структуры (UNPIVOT), валидация номенклатуры и слияние плановых срезов с фактом 1С.
                     </p>
                     <a href="{% url 'readiness' %}" class="btn btn-outline-dark btn-sm mt-3 w-100 py-2 fw-semibold">
                         Контроль и обработка →

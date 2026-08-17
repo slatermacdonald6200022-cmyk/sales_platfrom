@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитическая платформа | Дашборд</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --tsr-navy: #0B2545;
+            --tsr-blue: #134074;
+            --tsr-red: #D90429;
+            --tsr-red-hover: #b00320;
+            --tsr-bg: #F3F5F9;
+            --tsr-border: #E2E8F0;
+        }
+
+        body {
+            background-color: var(--tsr-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #1E293B;
+        }
+
+        .tsr-navbar {
+            background-color: var(--tsr-navy);
+            border-bottom: 3px solid var(--tsr-red);
+        }
+
+        /* KPI карточки точно как в DataLens */
+        .kpi-box {
+            background: #ffffff;
+            border: 1px solid var(--tsr-border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+            height: 100%;
+        }
+        .kpi-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748B;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .kpi-val {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--tsr-navy);
+        }
+        .kpi-val.highlight {
+            color: var(--tsr-red);
+        }
+        .kpi-sub {
+            font-size: 11px;
+            color: #94A3B8;
+        }
+
+        .chart-card {
+            background: #ffffff;
+            border: 1px solid var(--tsr-border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.03);
+            margin-bottom: 24px;
+        }
+
+        .table-custom th {
+            background-color: var(--tsr-navy);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar tsr-navbar py-2 mb-4">
+        <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
+            <a class="navbar-brand d-flex align-items-center gap-2 text-white m-0 text-decoration-none" href="{% url 'home' %}">
+                <span class="fs-5">📈</span>
+                <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
+            </a>
+
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-white-50 small">
+                    Пользователь: <strong class="text-white">{{ manager_name }}</strong>
+                </span>
+                <a href="{% url 'profile' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">Профиль</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4 mb-5">
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+                <h4 class="fw-bold mb-0" style="color: var(--tsr-navy);">Аналитический дашборд продаж</h4>
+                <div class="text-muted small">Мониторинг выполнения планов AOP / Forecast и отгрузок 1С:ERP</div>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">← На главную</a>
+            </div>
+        </div>
+
+        <div class="row g-2 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="kpi-box border-start border-4 border-primary">
+                    <div class="kpi-title">Выполнение плана AOP (шт)</div>
+                    <div class="kpi-val highlight">{{ kpi.exec_aop_qty }}%</div>
+                    <div class="kpi-sub">Факт / AOP шт.</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-box border-start border-4 border-danger">
+                    <div class="kpi-title">Выполнение Forecast (шт)</div>
+                    <div class="kpi-val highlight">{{ kpi.exec_forecast_qty }}%</div>
+                    <div class="kpi-sub">Факт / Forecast шт.</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-box border-start border-4 border-success">
+                    <div class="kpi-title">Выполнение AOP (¥)</div>
+                    <div class="kpi-val">{{ kpi.exec_aop_cny }}%</div>
+                    <div class="kpi-sub">Выручка в юанях</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-box border-start border-4 border-warning">
+                    <div class="kpi-title">Выполнение Forecast (¥)</div>
+                    <div class="kpi-val">{{ kpi.exec_forecast_cny }}%</div>
+                    <div class="kpi-sub">Выручка в юанях</div>
+                </div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="kpi-box">
+                    <div class="kpi-title">Продажи, факт, шт.</div>
+                    <div class="kpi-val">{{ kpi.fact_qty|floatformat:0 }}</div>
+                    <div class="kpi-sub">Отгрузки 1С</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-box">
+                    <div class="kpi-title">План (Forecast), шт.</div>
+                    <div class="kpi-val">{{ kpi.forecast_qty|floatformat:0 }}</div>
+                    <div class="kpi-sub">Скорректированный</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-box">
+                    <div class="kpi-title">Продажи, факт, ¥</div>
+                    <div class="kpi-val">{{ kpi.fact_cny|floatformat:0 }} ¥</div>
+                    <div class="kpi-sub">Без НДС</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-box">
+                    <div class="kpi-title">План (Forecast), ¥</div>
+                    <div class="kpi-val">{{ kpi.forecast_cny|floatformat:0 }} ¥</div>
+                    <div class="kpi-sub">Без НДС</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-lg-8">
+                <div class="chart-card">
+                    <h6 class="fw-bold mb-3" style="color: var(--tsr-navy);">Динамика выполнения плана по месяцам (тыс. шт.)</h6>
+                    <div style="height: 300px;">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="chart-card">
+                    <h6 class="fw-bold mb-3" style="color: var(--tsr-navy);">Выполнение плана по менеджерам (%)</h6>
+                    <div style="height: 300px;">
+                        <canvas id="managersBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0" style="color: var(--tsr-navy);">План-факт структура продаж по менеджерам</h6>
+                <a href="{% url 'compare_versions' %}" class="btn btn-outline-primary btn-sm fw-semibold">
+                    Сравнение срезов AOP/Forecast →
+                </a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Менеджер</th>
+                            <th>План AOP (шт.)</th>
+                            <th>Forecast (шт.)</th>
+                            <th>Факт 1С (шт.)</th>
+                            <th>Выручка факт (¥)</th>
+                            <th>Отклонение (шт.)</th>
+                            <th>% Выполнения</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for row in managers_table %}
+                            <tr>
+                                <td class="fw-bold">{{ row.name }}</td>
+                                <td>{{ row.aop }}</td>
+                                <td>{{ row.forecast }}</td>
+                                <td class="fw-semibold text-primary">{{ row.fact }}</td>
+                                <td>{{ row.cny }} ¥</td>
+                                <td class="text-danger fw-semibold">-{{ row.forecast|add:"-row.fact"|default:"50000" }}</td>
+                                <td>
+                                    {% if row.pct >= 90 %}
+                                        <span class="badge bg-success-subtle text-success border border-success">{{ row.pct }}%</span>
+                                    {% else %}
+                                        <span class="badge bg-warning-subtle text-warning border border-warning">{{ row.pct }}%</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. График помесячной динамики
+        const ctxMonthly = document.getElementById('monthlyTrendChart').getContext('2d');
+        new Chart(ctxMonthly, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels|safe }},
+                datasets: [
+                    {
+                        label: 'Факт 1С (тыс. шт)',
+                        data: {{ chart_fact|safe }},
+                        backgroundColor: '#D90429',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Forecast (тыс. шт)',
+                        data: {{ chart_forecast|safe }},
+                        backgroundColor: '#134074',
+                        borderRadius: 4
+                    },
+                    {
+                        type: 'line',
+                        label: 'План AOP (Цель)',
+                        data: {{ chart_aop|safe }},
+                        borderColor: '#0B2545',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: { beginAtZero: false }
+                }
+            }
+        });
+
+        // 2. Горизонтальный график выполнения по менеджерам
+        const ctxMgr = document.getElementById('managersBarChart').getContext('2d');
+        new Chart(ctxMgr, {
+            type: 'bar',
+            data: {
+                labels: {{ mgr_labels|safe }},
+                datasets: [{
+                    label: '% выполнения',
+                    data: {{ mgr_pcts|safe }},
+                    backgroundColor: '#134074',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { min: 70, max: 100 }
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
