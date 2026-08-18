@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('', views.upload_view, name='upload_files'),
+    path('delete/<str:file_type>/<str:target_id>/', views.delete_file_view, name='delete_file'),
     path('readiness/', views.readiness_view, name='readiness'),
-    path('compare/', views.compare_view, name='compare_versions'),
+    path('compare/', views.compare_view, name='compare'),
 ]

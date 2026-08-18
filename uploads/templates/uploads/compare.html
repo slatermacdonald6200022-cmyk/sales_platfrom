@@ -3,220 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аналитическая платформа | Сравнение срезов</title>
+    <title>Аналитическая платформа | Сравнение срезов прогнозов</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
             --brand-navy: #0B2545;
             --brand-blue: #134074;
             --brand-red: #D90429;
-            --brand-red-hover: #b00320;
-            --brand-bg: #F3F5F9;
+            --brand-bg: #F4F6F9;
             --brand-border: #E2E8F0;
         }
 
         body {
             background-color: var(--brand-bg);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: #1E293B;
         }
 
+        /* ЕДИНАЯ ШАПКА */
         .brand-navbar {
-            background-color: var(--brand-navy);
+            background-color: var(--brand-navy) !important;
             border-bottom: 3px solid var(--brand-red);
+            box-shadow: 0 2px 10px rgba(11, 37, 69, 0.15);
+        }
+
+        /* ЕДИНАЯ АВАТАРКА */
+        .avatar-circle {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #134074, #2563eb);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-badge {
+            transition: all 0.2s ease-in-out;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background-color: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            text-decoration: none;
+        }
+
+        .profile-badge:hover {
+            background-color: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.25);
+            opacity: 0.95;
         }
 
         .card-custom {
             border: 1px solid var(--brand-border);
-            border-radius: 12px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(11, 37, 69, 0.05);
             background: #ffffff;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-        }
-
-        .table-custom th {
-            background-color: var(--brand-navy);
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 600;
-            vertical-align: middle;
-        }
-
-        .btn-brand-primary {
-            background-color: var(--brand-navy);
-            color: #ffffff;
-            border: none;
-            font-weight: 600;
-        }
-        .btn-brand-primary:hover {
-            background-color: var(--brand-blue);
-            color: #ffffff;
-        }
-
-        .btn-brand-accent {
-            background-color: var(--brand-red);
-            color: #ffffff;
-            border: none;
-            font-weight: 600;
-        }
-        .btn-brand-accent:hover {
-            background-color: var(--brand-red-hover);
-            color: #ffffff;
-        }
-
-        .empty-state {
-            padding: 48px 24px;
-            text-align: center;
-            color: #64748B;
-            background-color: #FAFAFB;
-            border: 1px dashed var(--brand-border);
-            border-radius: 8px;
         }
     </style>
 </head>
 <body>
 
-    <nav class="navbar brand-navbar py-2 mb-4">
-        <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
-            <a class="navbar-brand d-flex align-items-center text-white m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
+    <nav class="navbar brand-navbar py-2 px-3 mb-4">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <a class="navbar-brand text-white fw-bold d-flex align-items-center gap-2 m-0 text-decoration-none" href="{% url 'home' %}">
+                <span style="font-size: 1.05rem; letter-spacing: 0.5px;">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
             </a>
 
-            <div class="d-flex align-items-center gap-3">
-                <span class="text-white-50 small">
-                    Пользователь: <strong class="text-white">{{ request.user.profile.manager_name|default:request.user.username }}</strong>
-                </span>
-                <a href="{% url 'profile' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">Профиль</a>
-            </div>
+            <a href="{% url 'profile' %}" class="profile-badge d-flex align-items-center gap-2 text-decoration-none" title="Личный кабинет">
+                <div class="avatar-circle">
+                    {% if request.user.profile.avatar %}
+                        <img src="{{ request.user.profile.avatar.url }}" alt="avatar" class="avatar-img">
+                    {% else %}
+                        <span>{{ request.user.first_name|first|default:request.user.username|first|upper }}</span>
+                    {% endif %}
+                </div>
+                <div class="text-start d-none d-sm-block">
+                    <div class="small fw-semibold text-white lh-1">
+                        {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
+                    </div>
+                    <div class="text-white-50" style="font-size: 0.72rem; margin-top: 3px;">
+                        {% if request.user.is_superuser or request.user.is_staff %}Администратор{% else %}Менеджер{% endif %}
+                    </div>
+                </div>
+            </a>
         </div>
     </nav>
 
-    <div class="container-fluid px-4 mb-5">
+    <div class="container pb-5">
 
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Сравнительный анализ срезов и версий прогнозирования</h4>
-                <p class="text-muted small mb-0">Сопоставление двух исторических версий планов, оценка динамики корректировок и расчет отклонений.</p>
+                <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Сравнение срезов прогнозов</h4>
+                <p class="text-muted small mb-0">Анализ изменений в планах продаж между различными расчетными датами.</p>
             </div>
-            <div class="d-flex gap-2">
-                <a href="{% url 'readiness' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">&larr; К обработке данных</a>
-                <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Главное меню</a>
-            </div>
-        </div>
-
-        <div class="card card-custom p-4 mb-4 border-start border-4 border-primary">
-            <h6 class="fw-bold mb-3" style="color: var(--brand-navy);">Параметры сопоставления срезов</h6>
-            <form method="get" action="{% url 'compare_versions' %}">
-                <div class="row g-3 align-items-end">
-
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted mb-1">Базовый срез (Срез А)</label>
-                        <select name="slice_a" class="form-select form-select-sm" required>
-                            <option value="" disabled {% if not slice_a %}selected{% endif %}>Выберите базовую версию...</option>
-                            {% for item in available_slices %}
-                                <option value="{{ item.id }}" {% if slice_a == item.id %}selected{% endif %}>
-                                    {{ item.name }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted mb-1">Сравниваемый срез (Срез Б)</label>
-                        <select name="slice_b" class="form-select form-select-sm" required>
-                            <option value="" disabled {% if not slice_b %}selected{% endif %}>Выберите сравниваемую версию...</option>
-                            {% for item in available_slices %}
-                                <option value="{{ item.id }}" {% if slice_b == item.id %}selected{% endif %}>
-                                    {{ item.name }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col-md-2">
-                        <label class="form-label small fw-bold text-muted mb-1">Менеджер</label>
-                        <select name="manager" class="form-select form-select-sm">
-                            <option value="all" {% if manager_filter == 'all' %}selected{% endif %}>Все менеджеры</option>
-                            {% for mgr in managers %}
-                                <option value="{{ mgr.id }}" {% if manager_filter == mgr.id %}selected{% endif %}>
-                                    {{ mgr.name }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-brand-accent btn-sm w-100 py-2">
-                            Рассчитать отклонения
-                        </button>
-                    </div>
-
-                </div>
-            </form>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                &larr; Главное меню
+            </a>
         </div>
 
         <div class="card card-custom p-4 mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">Реестр построчного сопоставления показателей</h6>
-                {% if is_calculated %}
-                    <span class="badge bg-light text-dark border">
-                        Сравнение: {{ slice_a }} &rarr; {{ slice_b }}
-                    </span>
-                {% endif %}
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-hover table-bordered table-custom align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th style="width: 15%;">Менеджер</th>
-                            <th style="width: 20%;">Контрагент (Клиент)</th>
-                            <th style="width: 15%;">Артикул номенклатуры</th>
-                            <th style="width: 12%;">Срез А (базовый, шт.)</th>
-                            <th style="width: 12%;">Срез Б (сравниваемый, шт.)</th>
-                            <th style="width: 13%;">Абсолютное отклонение (&Delta;, шт.)</th>
-                            <th style="width: 13%;">Относительное отклонение (%)</th>
-                        </tr>
-                    </thead>
-                    <tbody class="small">
-                        {% if is_calculated and comparison_rows %}
-                            {% for row in comparison_rows %}
-                                <tr>
-                                    <td class="fw-semibold">{{ row.manager }}</td>
-                                    <td>{{ row.client }}</td>
-                                    <td>{{ row.article }}</td>
-                                    <td>{{ row.val_a }}</td>
-                                    <td>{{ row.val_b }}</td>
-                                    <td class="{% if row.delta < 0 %}text-danger{% elif row.delta > 0 %}text-success{% endif %} fw-semibold">
-                                        {{ row.delta }}
-                                    </td>
-                                    <td>{{ row.pct_change }}%</td>
-                                </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="7" class="p-0">
-                                    <div class="empty-state">
-                                        <div class="fw-semibold text-dark mb-1">Данные для сопоставления не сформированы</div>
-                                        <div class="small">Выберите базовый и сравниваемый срезы в панели выше и нажмите кнопку «Рассчитать отклонения».</div>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+            <div class="row g-3 align-items-center">
+                <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1">Базовый срез (Срез 1):</label>
+                    <select class="form-select form-select-sm">
+                        <option selected>Срез планов от 01.06.2026</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-center text-muted fw-bold pt-3">
+                    VS
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1">Сравниваемый срез (Срез 2):</label>
+                    <select class="form-select form-select-sm">
+                        <option selected>Срез планов от 15.06.2026</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <div class="card card-custom p-3 d-flex flex-row justify-content-between align-items-center">
-            <a href="{% url 'readiness' %}" class="btn btn-outline-secondary btn-sm">
-                &larr; Вернуться к обработке данных
-            </a>
-            <a href="{% url 'dashboard' %}" class="btn btn-brand-primary btn-sm px-3 py-2">
-                Перейти к дашборду &rarr;
-            </a>
+        <div class="card card-custom p-4 text-center text-muted">
+            <p class="mb-0 small">Таблица сопоставления дельты прогнозов будет сформирована на основе выбранных срезов.</p>
         </div>
 
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

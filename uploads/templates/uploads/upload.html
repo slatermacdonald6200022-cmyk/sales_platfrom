@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аналитическая платформа | Импорт данных</title>
+    <title>Аналитическая платформа | Реестр импорта файлов</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
@@ -11,79 +11,184 @@
             --brand-blue: #134074;
             --brand-red: #D90429;
             --brand-red-hover: #b00320;
-            --brand-bg: #F3F5F9;
+            --brand-bg: #F4F6F9;
             --brand-border: #E2E8F0;
         }
 
         body {
             background-color: var(--brand-bg);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: #1E293B;
         }
 
-        .brand-navbar {
-            background-color: var(--brand-navy);
+        /* ФИРМЕННАЯ ШАПКА */
+        .navbar-custom {
+            background-color: var(--brand-navy) !important;
             border-bottom: 3px solid var(--brand-red);
+            box-shadow: 0 2px 10px rgba(11, 37, 69, 0.15);
+        }
+
+        /* КЛИКАБЕЛЬНЫЙ БЕЙДЖ ПРОФИЛЯ */
+        .profile-badge {
+            transition: all 0.2s ease-in-out;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background-color: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            text-decoration: none;
+        }
+
+        .profile-badge:hover {
+            background-color: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.25);
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        /* КРУГЛАЯ ГРАДИЕНТНАЯ АВАТАРКА */
+        .avatar-circle {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #134074, #2563eb);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .card-custom {
             border: 1px solid var(--brand-border);
-            border-radius: 12px;
+            border-radius: 10px;
             background: #ffffff;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
         }
 
-        .manager-row {
-            background-color: #FAFAFB;
-            border: 1px solid #E2E8F0;
+        .slot-card {
+            position: relative;
+            border: 1px solid var(--brand-border);
             border-radius: 8px;
-            padding: 12px 16px;
-            transition: all 0.2s ease;
-        }
-        .manager-row:hover {
-            background-color: #F1F5F9;
-            border-color: #CBD5E1;
+            background-color: #ffffff;
+            padding: 16px;
+            transition: all 0.2s ease-in-out;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
         }
 
-        .btn-brand-accent {
-            background-color: var(--brand-red);
+        .slot-card:hover {
+            border-color: var(--brand-blue);
+            box-shadow: 0 6px 16px rgba(19, 64, 116, 0.12);
+        }
+
+        .slot-uploaded {
+            border-left: 4px solid #198754;
+            background-color: #F8FCF9;
+        }
+
+        .slot-waiting {
+            border-left: 4px solid #94A3B8;
+        }
+
+        .meta-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 105%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--brand-navy);
+            color: #ffffff;
+            text-align: left;
+            padding: 12px 14px;
+            border-radius: 8px;
+            z-index: 100;
+            width: 280px;
+            font-size: 0.8rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+        }
+
+        .meta-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: var(--brand-navy) transparent transparent transparent;
+        }
+
+        .slot-card:hover .meta-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .btn-brand-primary {
+            background-color: var(--brand-blue);
             color: #ffffff;
             border: none;
-            font-weight: 700;
+            font-weight: 600;
         }
-        .btn-brand-accent:hover {
-            background-color: var(--brand-red-hover);
+
+        .btn-brand-primary:hover {
+            background-color: var(--brand-navy);
             color: #ffffff;
         }
     </style>
 </head>
 <body>
 
-    <nav class="navbar brand-navbar py-2 mb-4">
-        <div class="container px-4 d-flex justify-content-between align-items-center">
-            <a class="navbar-brand d-flex align-items-center text-white m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
+    <nav class="navbar navbar-custom py-2 px-3 mb-4">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <a class="navbar-brand text-white fw-bold d-flex align-items-center gap-2 m-0 text-decoration-none" href="{% url 'home' %}">
+                <span style="font-size: 1.05rem; letter-spacing: 0.5px;">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
             </a>
 
-            <div class="d-flex align-items-center gap-3">
-                <span class="text-white-50 small">
-                    Пользователь: <strong class="text-white">{{ request.user.profile.manager_name|default:request.user.username }}</strong>
-                </span>
-                <a href="{% url 'profile' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">Профиль</a>
-            </div>
+            <a href="{% url 'profile' %}" class="profile-badge d-flex align-items-center gap-2 text-decoration-none" title="Перейти в личный кабинет">
+                <div class="avatar-circle">
+                    {% if request.user.profile.avatar %}
+                        <img src="{{ request.user.profile.avatar.url }}" alt="avatar" class="avatar-img">
+                    {% else %}
+                        <span>{{ request.user.first_name|first|default:request.user.username|first|upper }}</span>
+                    {% endif %}
+                </div>
+                <div class="text-start d-none d-sm-block">
+                    <div class="small fw-semibold text-white lh-1">
+                        {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
+                    </div>
+                    <div class="text-white-50" style="font-size: 0.72rem; margin-top: 3px;">
+                        {% if is_admin %}Администратор{% else %}Менеджер{% endif %}
+                    </div>
+                </div>
+            </a>
         </div>
     </nav>
 
-    <div class="container px-4 mb-5" style="max-width: 850px;">
+    <div class="container px-4 mb-5">
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
             <div>
-                <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Модуль импорта исходных данных</h4>
+                <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Модуль 01. Реестр импорта файлов</h4>
                 <p class="text-muted small mb-0">
                     {% if is_admin %}
-                        Реестр загрузки файлов: индивидуальные планы менеджеров и выгрузка отгрузок 1С:ERP.
+                        Консоль администратора: мониторинг, загрузка и удаление файлов всех 10 менеджеров и 1С:ERP.
                     {% else %}
-                        Форма загрузки индивидуального плана продаж в формате Microsoft Excel.
+                        Индивидуальный слот: выберите Excel-файл для автоматической загрузки.
                     {% endif %}
                 </p>
             </div>
@@ -94,75 +199,169 @@
 
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-success py-2 small mb-4 rounded-3 text-center border-0 shadow-sm">
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show py-2 small" role="alert">
                     {{ message }}
+                    <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
                 </div>
             {% endfor %}
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-
-            {% if is_admin %}
-                <div class="card card-custom p-4 mb-4 border-start border-4 border-primary">
-                    <div class="mb-2">
-                        <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">1. Фактические отгрузки из учетной системы 1С:ERP</h6>
-                        <div class="text-muted small">Единый реестр фактической реализации за отчетный период</div>
-                    </div>
-                    <input type="file" name="file_1c" class="form-control" accept=".xlsx, .xls">
-                </div>
-            {% endif %}
-
-            <div class="card card-custom p-4 mb-4 border-start border-4 border-danger">
-                <div class="mb-3">
-                    <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">
-                        {% if is_admin %}
-                            2. Индивидуальные планы менеджеров (10 файлов)
+        {% if is_admin %}
+        <div class="card card-custom p-3 mb-4" style="border-left: 4px solid var(--brand-navy);">
+            <div class="row align-items-center">
+                <div class="col-lg-6 mb-2 mb-lg-0">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">Выгрузка фактических отгрузок (1C:ERP)</h6>
+                        {% if fact_1c %}
+                            <span class="badge bg-success">Загружен</span>
                         {% else %}
-                            Индивидуальный план продаж
+                            <span class="badge bg-secondary">Ожидает загрузки</span>
                         {% endif %}
-                    </h6>
-                    <div class="text-muted small">Файлы со структурой показателей AOP, Forecast и товарной номенклатурой</div>
-                </div>
+                    </div>
 
-                <div class="row g-3">
-                    {% for mgr in managers %}
-                        <div class="col-12">
-                            <div class="manager-row d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-                                <div class="fw-semibold text-dark small" style="min-width: 250px;">
-                                    {% if is_admin %}
-                                        <span class="badge bg-light text-dark border me-2">{{ forloop.counter }}</span>
-                                    {% endif %}
-                                    {{ mgr.name }}
-                                </div>
-                                <div class="flex-grow-1">
-                                    <input type="file"
-                                           name="file_manager_{{ mgr.id }}"
-                                           class="form-control form-control-sm"
-                                           accept=".xlsx, .xls" required>
-                                </div>
-                            </div>
+                    {% if fact_1c %}
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="small text-dark text-truncate fw-semibold" style="max-width: 80%;" title="{{ fact_1c.display_name }}">
+                                {{ fact_1c.display_name }}
+                            </span>
+                            <a href="{% url 'delete_file' file_type='fact_1c' target_id=fact_1c.stored_filename %}"
+                               class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap"
+                               style="font-size: 0.75rem;"
+                               onclick="return confirm('Удалить файл 1С:ERP с сервера?');">
+                                Удалить
+                            </a>
                         </div>
-                    {% endfor %}
+                        <div class="text-muted mt-1" style="font-size: 0.78rem;">
+                            Размер: {{ fact_1c.size }} &bull; Строк: {{ fact_1c.rows }} &bull; Столбцов: {{ fact_1c.cols }} &bull; Изменен: {{ fact_1c.modified }}
+                        </div>
+                    {% else %}
+                        <div class="small text-muted">Сводная таблица фактической реализации из 1С:ERP не загружена.</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-lg-6">
+                    <form method="post" enctype="multipart/form-data" class="m-0">
+                        {% csrf_token %}
+                        {% if fact_1c %}
+                            <input type="file"
+                                   name="file_1c"
+                                   class="form-control form-control-sm bg-light text-muted"
+                                   accept=".xlsx, .xls"
+                                   disabled
+                                   title="Сначала удалите текущий файл, чтобы загрузить новый">
+                        {% else %}
+                            <input type="file"
+                                   name="file_1c"
+                                   class="form-control form-control-sm"
+                                   accept=".xlsx, .xls"
+                                   title="Нажмите для выбора файла"
+                                   onchange="this.form.submit()">
+                        {% endif %}
+                    </form>
                 </div>
             </div>
+        </div>
+        {% endif %}
 
-            <div class="card card-custom p-3 d-flex flex-row justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0 text-uppercase small text-muted">
                 {% if is_admin %}
-                    <a href="{% url 'readiness' %}" class="btn btn-outline-secondary btn-sm">
-                        К обработке данных &rarr;
-                    </a>
+                    Планы продаж менеджеров
+                    <span class="badge bg-primary text-white ms-1">{{ uploaded_managers_count }} из {{ total_managers_count }} загружено</span>
                 {% else %}
-                    <span></span>
+                    Ваш индивидуальный файл плана
                 {% endif %}
-                <button type="submit" class="btn btn-brand-accent px-4 py-2">
-                    Сохранить файлы на сервере
-                </button>
-            </div>
+            </h6>
+        </div>
 
-        </form>
+        <div class="row g-3 mb-4">
+            {% for slot in slots %}
+            <div class="{% if is_admin %}col-md-6 col-lg-4{% else %}col-md-8 col-lg-6 mx-auto{% endif %}">
+                <div class="slot-card {% if slot.is_uploaded %}slot-uploaded{% else %}slot-waiting{% endif %}">
+
+                    {% if slot.is_uploaded %}
+                    <div class="meta-tooltip">
+                        <div class="fw-bold border-bottom pb-1 mb-2 text-warning">Информация о файле</div>
+                        <div><strong>Имя:</strong> {{ slot.info.display_name }}</div>
+                        <div><strong>Размер:</strong> {{ slot.info.size }}</div>
+                        <div><strong>Строк:</strong> {{ slot.info.rows }}</div>
+                        <div><strong>Столбцов:</strong> {{ slot.info.cols }}</div>
+                        <div><strong>Листов:</strong> {{ slot.info.sheets_count }} ({{ slot.info.sheet_names }})</div>
+                        <div class="mt-1 pt-1 border-top border-secondary text-white-50" style="font-size: 0.72rem;">
+                            Загружен: {{ slot.info.modified }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark fs-6">{{ slot.name }}</span>
+                        {% if slot.is_uploaded %}
+                            <span class="badge bg-success">Загружен</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Не загружен</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="my-2 flex-grow-1">
+                        {% if slot.is_uploaded %}
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-success text-truncate fw-semibold me-2" title="{{ slot.info.display_name }}">
+                                    {{ slot.info.display_name }}
+                                </span>
+                                <a href="{% url 'delete_file' file_type='manager' target_id=slot.id %}"
+                                   class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap"
+                                   style="font-size: 0.75rem;"
+                                   title="Удалить файл"
+                                   onclick="return confirm('Удалить файл менеджера {{ slot.name }}?');">
+                                    Удалить
+                                </a>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.78rem;">
+                                {{ slot.info.size }} &bull; {{ slot.info.rows }} строк &bull; {{ slot.info.cols }} колонок
+                            </div>
+                        {% else %}
+                            <div class="small text-muted">
+                                Файл в хранилище отсутствует
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-2 pt-2 border-top">
+                        <form method="post" enctype="multipart/form-data" class="m-0">
+                            {% csrf_token %}
+                            {% if slot.is_uploaded %}
+                                <input type="file"
+                                       name="file_manager_{{ slot.id }}"
+                                       class="form-control form-control-sm bg-light text-muted"
+                                       accept=".xlsx, .xls"
+                                       disabled
+                                       title="Сначала удалите текущий файл, чтобы загрузить новый">
+                            {% else %}
+                                <input type="file"
+                                       name="file_manager_{{ slot.id }}"
+                                       class="form-control form-control-sm"
+                                       accept=".xlsx, .xls"
+                                       title="Нажмите для выбора файла"
+                                       onchange="this.form.submit()">
+                            {% endif %}
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if is_admin %}
+        <div class="card card-custom p-3 d-flex flex-row justify-content-end align-items-center">
+            <a href="{% url 'readiness' %}" class="btn btn-brand-primary btn-sm px-4">
+                Перейти к модулю обработки (ETL) &rarr;
+            </a>
+        </div>
+        {% endif %}
 
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
