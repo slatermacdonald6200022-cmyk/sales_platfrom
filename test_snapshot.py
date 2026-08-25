@@ -1,13 +1,8 @@
-import os
-import django
+from uploads.processors.snapshot_engine import create_full_snapshot
 
-# Настройка Django окружения
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
-django.setup()
-
-from uploads.processors.snapshot_engine import run_full_snapshot_pipeline
-
-if __name__ == '__main__':
-    print("🚀 Запуск теста генерации среза по папкам с датами...")
-    success, msg = run_full_snapshot_pipeline()
-    print("Результат:", msg)
+if __name__ == "__main__":
+    df = create_full_snapshot(
+        raw_dir="data/raw"
+    )
+    if df is not None:
+        print("\n🎉 Все 10 планов менеджеров и факт 1С успешно обработаны и сведены!")

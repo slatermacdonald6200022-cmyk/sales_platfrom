@@ -1,8 +1,6 @@
 import os
 import re
-import datetime
 import pandas as pd
-import numpy as np
 
 
 def normalize_text(val):
@@ -20,17 +18,14 @@ def normalize_article(val):
     return s.strip()
 
 
-def parse_1c_fact_file(file_path):
-    """
-    Парсит отчет 1С:ERP и возвращает плоскую таблицу фактов:
-    [Клиент, Артикул, Год, Номер месяца, Факт, шт, Факт, CNY]
-    """
-    if not os.path.exists(file_path):
+def normalize_1c_file(file_path):
+    """Парсит отчет валовой прибыли 1C ERP и возвращает плоскую таблицу."""
+    if not file_path or not os.path.exists(file_path):
         return pd.DataFrame()
 
     df_raw = pd.read_excel(file_path, header=None)
 
-    # 1. Поиск периода в шапке (например: 01.05.2026 - 31.05.2026)
+    # 1. Поиск периода в шапке
     period_year = 2026
     period_month = 5
     for i in range(min(15, len(df_raw))):
@@ -54,7 +49,6 @@ def parse_1c_fact_file(file_path):
     if header_idx is None:
         header_idx = 8
 
-    # 3. Определение столбцов
     header_row = df_raw.iloc[header_idx]
     col_client_item = 0
     col_qty = None
@@ -62,7 +56,7 @@ def parse_1c_fact_file(file_path):
 
     for c in range(df_raw.shape[1]):
         val = str(header_row.iloc[c]).lower()
-        if 'количество' in val or 'кол-во' in val or 'колво' in val:
+        if 'количество' in val or 'кол-во' in val:
             if col_qty is None:
                 col_qty = c
         if 'выручка' in val or 'сумма' in val or 'cny' in val or 'юан' in val:
@@ -75,7 +69,6 @@ def parse_1c_fact_file(file_path):
         col_cny = 4
 
     rows_data = df_raw.iloc[header_idx + 1:].copy()
-
     records = []
     current_client = None
 
@@ -94,12 +87,11 @@ def parse_1c_fact_file(file_path):
         except Exception:
             cny_val = 0.0
 
-        # Если это строка клиента
+        # Определение строки клиента (без количества, длинный текст)
         if pd.isna(row.iloc[col_qty]) or (qty_val == 0 and cny_val == 0 and len(first_cell) > 3):
             current_client = first_cell
             continue
 
-        # Если это строка товара
         if current_client:
             art = normalize_article(first_cell)
             records.append({
@@ -108,8 +100,14 @@ def parse_1c_fact_file(file_path):
                 'Наименование': first_cell,
                 'Год': period_year,
                 'Номер месяца': period_month,
+                'Месяц': f"{period_year}-{period_month:02d}",
                 'Факт, шт': qty_val,
                 'Факт, CNY': cny_val
             })
 
     return pd.DataFrame(records)
+
+
+# Алиас для совместимости
+parse_1c_fact_file = normalize_1c_file
+process_1c_file = normalize_1c_file
