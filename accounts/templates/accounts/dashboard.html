@@ -3,26 +3,15 @@
 {% block title %}Аналитическая панель показателей продаж{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3">
+<div class="container-fluid px-4 py-3" style="background-color: #F8FAFC; min-height: 100vh;">
 
-    <!-- Верхний заголовок -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h4 class="fw-bold mb-1" style="color: #0B2545;">Аналитическая панель показателей продаж</h4>
-            <p class="text-muted small mb-0">Оперативный мониторинг плановых и фактических срезов в разрезе ответственных менеджеров, номенклатуры и контрагентов.</p>
-        </div>
-        <div>
-            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill">← Главное меню</a>
-        </div>
-    </div>
-
-    <!-- Блок 4-х селекторов -->
-    <div class="card p-3 mb-4 bg-white border rounded-3 shadow-sm">
-        <form method="get" id="filterForm">
-            <div class="row g-3 align-items-end">
+    <!-- Панель селекторов фильтрации -->
+    <div class="card p-3 mb-4 bg-white border-0 shadow-sm rounded-3">
+        <form id="filterForm" method="get" action="{% url 'dashboard' %}">
+            <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted mb-1">Менеджер</label>
-                    <select name="manager" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit();">
+                    <select name="manager" class="form-select form-select-sm" onchange="this.form.submit();">
                         <option value="">Все менеджеры</option>
                         {% for m in managers_list %}
                             <option value="{{ m }}" {% if selected_manager == m %}selected{% endif %}>{{ m }}</option>
@@ -30,8 +19,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Наименование / Артикул</label>
-                    <select name="article" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit();">
+                    <label class="form-label small fw-bold text-muted mb-1">Наименование</label>
+                    <select name="article" class="form-select form-select-sm" onchange="this.form.submit();">
                         <option value="">Вся номенклатура</option>
                         {% for art in articles_list %}
                             <option value="{{ art }}" {% if selected_article == art %}selected{% endif %}>{{ art }}</option>
@@ -39,8 +28,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Контрагент (Клиент)</label>
-                    <select name="client" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit();">
+                    <label class="form-label small fw-bold text-muted mb-1">Клиент</label>
+                    <select name="client" class="form-select form-select-sm" onchange="this.form.submit();">
                         <option value="">Все клиенты</option>
                         {% for c in clients_list %}
                             <option value="{{ c }}" {% if selected_client == c %}selected{% endif %}>{{ c }}</option>
@@ -49,9 +38,9 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted mb-1">Выбранный период</label>
-                    <select name="period" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit();">
-                        {% for p_val, p_label in periods_list %}
-                            <option value="{{ p_val }}" {% if selected_period == p_val %}selected{% endif %}>{{ p_label }}</option>
+                    <select name="period" class="form-select form-select-sm" onchange="this.form.submit();">
+                        {% for p_val, p_name in periods_options %}
+                            <option value="{{ p_val }}" {% if selected_period == p_val %}selected{% endif %}>{{ p_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -59,84 +48,112 @@
         </form>
     </div>
 
-    <!-- 3 Группы карточек KPI -->
+    <!-- ВЕРХНИЙ БЛОК: Динамический график по менеджерам (слева) + 9 Карточек KPI (справа) -->
     <div class="row g-4 mb-4">
-        
-        <!-- Месячные показатели -->
-        <div class="col-md-4">
-            <div class="fw-bold text-uppercase text-dark mb-2 small" style="letter-spacing: 0.5px;">МЕСЯЧНЫЕ ПОКАЗАТЕЛИ</div>
-            <div class="d-flex flex-column gap-2">
-                <div class="card p-3 border-start border-4 border-primary shadow-sm bg-white">
-                    <div class="text-muted small">AOP за выбранный период, CNY</div>
-                    <div class="fs-5 fw-bold text-dark">{{ kpi.month_aop }}</div>
-                </div>
-                <div class="card p-3 border-start border-4 border-primary shadow-sm bg-white">
-                    <div class="text-muted small">Прогноз за выбранный период, CNY</div>
-                    <div class="fs-5 fw-bold text-dark">{{ kpi.month_forecast }}</div>
-                </div>
-                <div class="card p-3 border-start border-4 border-primary shadow-sm bg-white">
-                    <div class="text-muted small">Факт за выбранный период, CNY</div>
-                    <div class="fs-5 fw-bold text-primary">{{ kpi.month_fact }}</div>
+
+        <!-- Слева: Динамический график по выбранным менеджерам -->
+        <div class="col-lg-4">
+            <div class="card p-3 bg-white border-0 shadow-sm rounded-3 h-100 d-flex flex-column">
+                <div class="small fw-bold text-muted mb-2">Исполнение планов по менеджерам (Динамический)</div>
+                <div class="flex-grow-1" style="min-height: 420px; position: relative;">
+                    <canvas id="dynamicManagersChart"></canvas>
                 </div>
             </div>
         </div>
 
-        <!-- Годовые показатели -->
-        <div class="col-md-4">
-            <div class="fw-bold text-uppercase text-dark mb-2 small" style="letter-spacing: 0.5px;">ГОДОВЫЕ ПОКАЗАТЕЛИ</div>
-            <div class="d-flex flex-column gap-2">
-                <div class="card p-3 border-start border-4 border-secondary shadow-sm bg-white">
-                    <div class="text-muted small">AOP с начала года, CNY</div>
-                    <div class="fs-5 fw-bold text-dark">{{ kpi.ytd_aop }}</div>
-                </div>
-                <div class="card p-3 border-start border-4 border-secondary shadow-sm bg-white">
-                    <div class="text-muted small">Прогноз до конца года, CNY</div>
-                    <div class="fs-5 fw-bold text-dark">{{ kpi.full_year_forecast }}</div>
-                </div>
-                <div class="card p-3 border-start border-4 border-secondary shadow-sm bg-white">
-                    <div class="text-muted small">Факт с начала года, CNY</div>
-                    <div class="fs-5 fw-bold text-primary">{{ kpi.ytd_fact }}</div>
-                </div>
-            </div>
-        </div>
+        <!-- Справа: 3 Группы KPI показателей -->
+        <div class="col-lg-8">
+            <div class="d-flex flex-column gap-3 h-100 justify-content-between">
 
-        <!-- Процентные показатели -->
-        <div class="col-md-4">
-            <div class="fw-bold text-uppercase text-dark mb-2 small" style="letter-spacing: 0.5px;">ПРОЦЕНТНЫЕ ПОКАЗАТЕЛИ</div>
-            <div class="d-flex flex-column gap-2">
-                <div class="card p-3 border-start border-4 border-danger shadow-sm bg-white">
-                    <div class="text-muted small">Факт / AOP за выбранный период, %</div>
-                    <div class="fs-5 fw-bold text-danger">{{ kpi.pct_fact_aop_month }}</div>
+                <!-- 1. Месячные показатели -->
+                <div>
+                    <h6 class="fw-bold mb-2 text-dark">Месячные показатели</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                <div class="text-muted small mb-1">AOP за выбранный месяц, CNY</div>
+                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_aop }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                <div class="text-muted small mb-1">Прогноз за выбранный месяц, CNY</div>
+                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_forecast }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                <div class="text-muted small mb-1">Факт за выбранный месяц, CNY</div>
+                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_fact }}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card p-3 border-start border-4 border-danger shadow-sm bg-white">
-                    <div class="text-muted small">Факт / AOP с начала года, %</div>
-                    <div class="fs-5 fw-bold text-danger">{{ kpi.pct_fact_aop_ytd }}</div>
+
+                <!-- 2. Годовые показатели -->
+                <div>
+                    <h6 class="fw-bold mb-2 text-dark">Годовые показатели</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                <div class="text-muted small mb-1">AOP с начала года, CNY</div>
+                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.ytd_aop }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                <div class="text-muted small mb-1">Прогноз до конца года, CNY</div>
+                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.full_year_forecast }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                <div class="text-muted small mb-1">Факт с начала года, CNY</div>
+                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.ytd_fact }}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card p-3 border-start border-4 border-danger shadow-sm bg-white">
-                    <div class="text-muted small">Факт / Прогноз с начала года, %</div>
-                    <div class="fs-5 fw-bold text-danger">{{ kpi.pct_fact_forecast_ytd }}</div>
+
+                <!-- 3. Процентные показатели с цветовым градиентом -->
+                <div>
+                    <h6 class="fw-bold mb-2 text-dark">Процентные показатели</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="card p-3 shadow-sm bg-white" style="border-left: 4px solid {{ kpi.color_month_aop }};">
+                                <div class="text-muted small mb-1">Факт / AOP за выбранный месяц, %</div>
+                                <div class="fs-4 fw-bold" style="color: {{ kpi.color_month_aop }};">{{ kpi.pct_month_aop }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-3 shadow-sm bg-white" style="border-left: 4px solid {{ kpi.color_ytd_aop }};">
+                                <div class="text-muted small mb-1">Факт / AOP с начала года, %</div>
+                                <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_aop }};">{{ kpi.pct_ytd_aop }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-3 shadow-sm bg-white" style="border-left: 4px solid {{ kpi.color_ytd_forecast }};">
+                                <div class="text-muted small mb-1">Факт / Прогноз с начала года, %</div>
+                                <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_forecast }};">{{ kpi.pct_ytd_forecast }}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
             </div>
         </div>
 
     </div>
 
-    <!-- Блок Графиков Chart.js -->
+    <!-- НИЖНИЙ БЛОК: Статичный график по 12 месяцам компании -->
     <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="card p-4 bg-white border rounded-3 shadow-sm h-100">
-                <h6 class="fw-bold text-dark mb-3">Динамика исполнения плановых ориентиров по периодам</h6>
-                <div style="height: 320px;">
-                    <canvas id="salesTrendChart"></canvas>
+        <div class="col-12">
+            <div class="card p-4 bg-white border-0 shadow-sm rounded-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="small fw-bold text-muted">Динамика компании по месяцам за {{ target_year }} год (Статичный график)</div>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card p-4 bg-white border rounded-3 shadow-sm h-100">
-                <h6 class="fw-bold text-dark mb-3">Исполнение прогнозов по направлениям</h6>
-                <div style="height: 320px;" class="d-flex align-items-center justify-content-center">
-                    <canvas id="structureChart"></canvas>
+                <div style="height: 300px; position: relative;">
+                    <canvas id="staticMonthsChart"></canvas>
                 </div>
             </div>
         </div>
@@ -144,39 +161,39 @@
 
 </div>
 
-<!-- Скрипты построения графиков -->
+<!-- Скрипт инициализации графиков Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    const ctxTrend = document.getElementById('salesTrendChart').getContext('2d');
-    new Chart(ctxTrend, {
-        type: 'line',
+    // 1. Верхний динамический график по менеджерам
+    const ctxDyn = document.getElementById('dynamicManagersChart').getContext('2d');
+    new Chart(ctxDyn, {
+        type: 'bar',
         data: {
-            labels: {{ chart_labels|safe }},
+            labels: {{ dyn_managers|safe }},
             datasets: [
                 {
-                    label: 'Факт 1C:ERP (CNY)',
-                    data: {{ chart_fact|safe }},
-                    borderColor: '#D90429',
-                    backgroundColor: '#D90429',
-                    tension: 0.2,
-                    fill: false
+                    label: 'AOP, CNY',
+                    data: {{ dyn_aop|safe }},
+                    backgroundColor: '#7dd3fc', // Голубой
+                    borderRadius: 3,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
                 },
                 {
-                    label: 'Прогноз Forecast (CNY)',
-                    data: {{ chart_forecast|safe }},
-                    borderColor: '#134074',
-                    backgroundColor: '#134074',
-                    tension: 0.2,
-                    fill: false
+                    label: 'Прогноз, CNY',
+                    data: {{ dyn_forecast|safe }},
+                    backgroundColor: '#94a3b8', // Серо-голубой
+                    borderRadius: 3,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
                 },
                 {
-                    label: 'План AOP (Цель)',
-                    data: {{ chart_aop|safe }},
-                    borderColor: '#0B2545',
-                    backgroundColor: '#0B2545',
-                    borderDash: [5, 5],
-                    tension: 0.2,
-                    fill: false
+                    label: 'Факт, CNY',
+                    data: {{ dyn_fact|safe }},
+                    backgroundColor: '#78716c', // Графитово-коричневый
+                    borderRadius: 3,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
                 }
             ]
         },
@@ -184,30 +201,75 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'top' }
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
             },
             scales: {
-                y: { beginAtZero: true }
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 25, font: { size: 10 } }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(val) {
+                            return val >= 1000000 ? (val / 1000000).toFixed(0) + 'M' : (val / 1000).toFixed(0) + 'K';
+                        }
+                    }
+                }
             }
         }
     });
 
-    const ctxStructure = document.getElementById('structureChart').getContext('2d');
-    new Chart(ctxStructure, {
-        type: 'doughnut',
+    // 2. Нижний статичный график по 12 месяцам компании
+    const ctxStatic = document.getElementById('staticMonthsChart').getContext('2d');
+    new Chart(ctxStatic, {
+        type: 'bar',
         data: {
-            labels: ['Факт исполнения', 'Остаток плана'],
-            datasets: [{
-                data: {{ chart_doughnut|safe }},
-                backgroundColor: ['#134074', '#E2E8F0'],
-                borderWidth: 0
-            }]
+            labels: {{ static_labels|safe }},
+            datasets: [
+                {
+                    label: 'AOP, CNY',
+                    data: {{ static_aop|safe }},
+                    backgroundColor: '#7dd3fc',
+                    borderRadius: 3,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
+                },
+                {
+                    label: 'Прогноз, CNY',
+                    data: {{ static_forecast|safe }},
+                    backgroundColor: '#94a3b8',
+                    borderRadius: 3,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
+                },
+                {
+                    label: 'Факт, CNY',
+                    data: {{ static_fact|safe }},
+                    backgroundColor: '#78716c',
+                    borderRadius: 3,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+            },
+            scales: {
+                x: {
+                    ticks: { font: { size: 11 } }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(val) {
+                            return (val / 1000000).toFixed(0) + 'M';
+                        }
+                    }
+                }
             }
         }
     });

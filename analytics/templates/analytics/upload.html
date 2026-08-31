@@ -1,46 +1,147 @@
 {% extends "accounts/base.html" %}
-{% block title %}Загрузка файлов | Sales Analytics{% endblock %}
+
+{% block title %}Модуль 01. Реестр импорта файлов | Sales Analytics{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-cloud-arrow-up text-primary me-2"></i>Загрузка файлов</h3>
-        <p class="text-muted mb-0">Слоты для загрузки планов продаж и сводной выгрузки 1С ERP.</p>
-    </div>
-    <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>На главную</a>
-</div>
+<div class="container-fluid px-4 py-3">
 
-<div class="card card-custom p-4 mb-4 border-start border-4 border-success">
-    <div class="row align-items-center">
-        <div class="col-md-7">
-            <h5 class="fw-bold text-success mb-1"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Выгрузка фактических отгрузок (1C ERP)</h5>
-            <small class="text-muted">Статус: <span class="badge bg-secondary">Файл не выбран</span></small>
+    <!-- Верхний заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Модуль 01. Реестр импорта файлов</h4>
+            <p class="text-muted small mb-0">
+                {% if is_admin %}
+                    Консоль администратора: мониторинг, загрузка и удаление файлов всех 10 менеджеров и 1С:ERP.
+                {% else %}
+                    Индивидуальный слот менеджера: выберите файл плана для загрузки на сервер.
+                {% endif %}
+            </p>
         </div>
-        <div class="col-md-5 d-flex gap-2 justify-content-end">
-            <input type="file" class="form-control form-control-sm w-auto">
-            <button class="btn btn-success btn-sm"><i class="bi bi-upload me-1"></i>Загрузить 1С</button>
+        <div class="d-flex gap-2">
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                &larr; Главное меню
+            </a>
+            <a href="{% url 'processing_page' %}" class="btn text-white btn-sm rounded-pill px-3" style="background-color: var(--brand-navy);">
+                К обработке (ETL) &rarr;
+            </a>
         </div>
     </div>
-</div>
 
-<h5 class="fw-bold mb-3"><i class="bi bi-people me-2"></i>Планы продаж (10 менеджеров)</h5>
-
-<div class="row g-3 mb-4">
-    {% for manager in managers_slots %}
-    <div class="col-md-6 col-lg-4">
-        <div class="card card-custom p-3 h-100">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <h6 class="fw-bold text-dark mb-0">{{ manager.name }}</h6>
-                <span class="badge {{ manager.badge_class }}">{{ manager.status }}</span>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show py-2 small" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
             </div>
-            <p class="text-muted small mb-3"><i class="bi bi-file-earmark-excel me-1"></i>{{ manager.file_name|default:"Файл еще не прикреплен" }}</p>
-            
-            <div class="mt-auto pt-2 border-top d-flex gap-2">
-                <input type="file" class="form-control form-control-sm">
-                <button class="btn btn-primary btn-sm"><i class="bi bi-upload"></i></button>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Блок 1C:ERP -->
+    {% if is_admin %}
+    <div class="card border-0 shadow-sm rounded-3 p-4 mb-4 bg-white">
+        <div class="row align-items-center">
+            <div class="col-lg-6 mb-3 mb-lg-0">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">Выгрузка фактических отгрузок (1C:ERP)</h6>
+                    {% if fact_1c %}
+                        <span class="badge bg-success">Загружен</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Ожидает загрузки</span>
+                    {% endif %}
+                </div>
+
+                {% if fact_1c %}
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <span class="small text-dark fw-semibold">{{ fact_1c.display_name }}</span>
+                        <a href="{% url 'delete_file' file_type='fact_1c' target_id=fact_1c.stored_filename %}"
+                           class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap"
+                           style="font-size: 0.75rem;"
+                           onclick="return confirm('Удалить файл 1С:ERP?');">
+                            Удалить
+                        </a>
+                    </div>
+                    <div class="text-muted mt-1" style="font-size: 0.78rem;">
+                        Размер: {{ fact_1c.size }} &bull; Строк: {{ fact_1c.rows }} &bull; Столбцов: {{ fact_1c.cols }} &bull; Изменен: {{ fact_1c.modified }}
+                    </div>
+                {% else %}
+                    <div class="small text-muted mt-1">Файл фактической реализации за текущий период еще не загружен.</div>
+                {% endif %}
+            </div>
+
+            <div class="col-lg-6">
+                <form method="post" enctype="multipart/form-data" class="m-0">
+                    {% csrf_token %}
+                    <input type="file" name="file_1c" class="form-control form-control-sm" accept=".xlsx, .xls" onchange="this.form.submit()">
+                </form>
             </div>
         </div>
     </div>
-    {% endfor %}
+    {% endif %}
+
+    <!-- Заголовок планов -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="small fw-bold text-uppercase text-muted">
+            Планы продаж менеджеров
+            {% if is_admin %}
+                <span class="badge bg-primary text-white ms-2">{{ uploaded_managers_count }} из {{ total_managers_count }} загружено</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Сетка слотов 10 менеджеров -->
+    <div class="row g-3 mb-4">
+        {% for slot in slots %}
+        <div class="{% if is_admin %}col-md-6 col-lg-4{% else %}col-md-8 col-lg-6 mx-auto{% endif %}">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white d-flex flex-column"
+                 style="border-left: 4px solid {% if slot.is_uploaded %}#198754{% else %}#94A3B8{% endif %} !important;">
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-dark fs-6">{{ slot.name }}</span>
+                    {% if slot.is_uploaded %}
+                        <span class="badge bg-success">Загружен</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Не загружен</span>
+                    {% endif %}
+                </div>
+
+                <div class="my-2 flex-grow-1">
+                    {% if slot.is_uploaded %}
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small text-success fw-semibold text-truncate me-2" title="{{ slot.info.display_name }}">
+                                {{ slot.info.display_name }}
+                            </span>
+                            <a href="{% url 'delete_file' file_type='manager' target_id=slot.id %}"
+                               class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap"
+                               style="font-size: 0.75rem;"
+                               onclick="return confirm('Удалить файл менеджера {{ slot.name }}?');">
+                                Удалить
+                            </a>
+                        </div>
+                        <div class="text-muted" style="font-size: 0.78rem;">
+                            {{ slot.info.size }} &bull; {{ slot.info.rows }} строк &bull; {{ slot.info.cols }} колонок
+                        </div>
+                    {% else %}
+                        <div class="small text-muted">
+                            Файл в хранилище отсутствует
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-2 pt-2 border-top">
+                    <form method="post" enctype="multipart/form-data" class="m-0">
+                        {% csrf_token %}
+                        <input type="file"
+                               name="file_manager_{{ slot.id }}"
+                               class="form-control form-control-sm"
+                               accept=".xlsx, .xls"
+                               onchange="this.form.submit()">
+                    </form>
+                </div>
+
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
 </div>
 {% endblock %}

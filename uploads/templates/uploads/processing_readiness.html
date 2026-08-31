@@ -1,167 +1,59 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аналитическая платформа | ETL и контроль готовности</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --brand-navy: #0B2545;
-            --brand-blue: #134074;
-            --brand-red: #D90429;
-            --brand-bg: #F4F6F9;
-            --brand-border: #E2E8F0;
-        }
+{% extends "accounts/base.html" %}
 
-        body {
-            background-color: var(--brand-bg);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            color: #1E293B;
-        }
+{% block title %}Контроль готовности и запуск ETL | Sales Analytics{% endblock %}
 
-        /* ЕДИНАЯ ШАПКА */
-        .brand-navbar {
-            background-color: var(--brand-navy) !important;
-            border-bottom: 3px solid var(--brand-red);
-            box-shadow: 0 2px 10px rgba(11, 37, 69, 0.15);
-        }
+{% block content %}
+<div class="container px-4 py-4" style="max-width: 980px;">
 
-        /* ЕДИНАЯ АВАТАРКА */
-        .avatar-circle {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #134074, #2563eb);
-            color: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.95rem;
-            border: 2px solid rgba(255, 255, 255, 0.35);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .avatar-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .profile-badge {
-            transition: all 0.2s ease-in-out;
-            padding: 4px 12px;
-            border-radius: 20px;
-            background-color: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            text-decoration: none;
-        }
-
-        .profile-badge:hover {
-            background-color: rgba(255, 255, 255, 0.18);
-            border-color: rgba(255, 255, 255, 0.25);
-            opacity: 0.95;
-        }
-
-        .card-custom {
-            border: 1px solid var(--brand-border);
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(11, 37, 69, 0.05);
-            background: #ffffff;
-        }
-
-        .btn-brand-primary {
-            background-color: var(--brand-navy);
-            color: #ffffff;
-            font-weight: 500;
-        }
-
-        .btn-brand-primary:hover {
-            background-color: var(--brand-blue);
-            color: #ffffff;
-        }
-    </style>
-</head>
-<body>
-
-    <nav class="navbar brand-navbar py-2 px-3 mb-4">
-        <div class="container-fluid d-flex justify-content-between align-items-center">
-            <a class="navbar-brand text-white fw-bold d-flex align-items-center gap-2 m-0 text-decoration-none" href="{% url 'home' %}">
-                <span style="font-size: 1.05rem; letter-spacing: 0.5px;">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
-            </a>
-
-            <a href="{% url 'profile' %}" class="profile-badge d-flex align-items-center gap-2 text-decoration-none" title="Личный кабинет">
-                <div class="avatar-circle">
-                    {% if request.user.profile.avatar %}
-                        <img src="{{ request.user.profile.avatar.url }}" alt="avatar" class="avatar-img">
-                    {% else %}
-                        <span>{{ request.user.first_name|first|default:request.user.username|first|upper }}</span>
-                    {% endif %}
-                </div>
-                <div class="text-start d-none d-sm-block">
-                    <div class="small fw-semibold text-white lh-1">
-                        {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
-                    </div>
-                    <div class="text-white-50" style="font-size: 0.72rem; margin-top: 3px;">
-                        {% if request.user.is_superuser or request.user.is_staff %}Администратор{% else %}Менеджер{% endif %}
-                    </div>
-                </div>
-            </a>
+    <!-- Заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Контроль готовности и запуск ETL</h4>
+            <p class="text-muted small mb-0">Проверка наличия всех 10 файлов менеджеров и файла 1С перед нормализацией.</p>
         </div>
-    </nav>
-
-    <div class="container pb-5">
-
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Контроль готовности и запуск ETL</h4>
-                <p class="text-muted small mb-0">Проверка наличия всех 10 файлов менеджеров и файла 1С перед нормализацией.</p>
-            </div>
-            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-                &larr; Главное меню
-            </a>
+        <div>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">&larr; Главное меню</a>
         </div>
+    </div>
 
-        <div class="row g-4 mb-4">
-            <div class="col-lg-6">
-                <div class="card card-custom p-4 h-100">
-                    <h6 class="fw-bold mb-3" style="color: var(--brand-navy);">Статус нормализации и слияния</h6>
-                    <p class="small text-muted mb-3">Запуск процедур очистки, разворота UNPIVOT и объединения плановых показателей с фактической витриной 1С:ERP.</p>
-
-                    <form method="post" action="{% url 'readiness' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-brand-primary btn-sm w-100 py-2 mt-2">
-                            Выполнить преобразование данных (ETL)
-                        </button>
-                    </form>
+    <div class="row g-4 mb-4">
+        
+        <!-- Карточка запуска -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
+                <h6 class="fw-bold mb-2" style="color: var(--brand-navy);">Статус нормализации и слияния</h6>
+                <p class="text-muted small flex-grow-1">
+                    Запуск процедур очистки, разворота UNPIVOT и объединения плановых показателей с фактической витриной 1С:ERP.
+                </p>
+                <div class="mt-4">
+                    <a href="{% url 'processing_page' %}" class="btn text-white w-100 py-2 fw-bold rounded-3" style="background-color: var(--brand-navy);">
+                        Выполнить преобразование данных (ETL) &rarr;
+                    </a>
                 </div>
             </div>
+        </div>
 
-            <div class="col-lg-6">
-                <div class="card card-custom p-4 h-100">
-                    <h6 class="fw-bold mb-3" style="color: var(--brand-navy);">Навигация по модулям</h6>
-                    <p class="small text-muted mb-4">После формирования среза перейдите к сопоставлению прогнозов или к аналитическому дашборду.</p>
-
-                    <div class="d-flex flex-column gap-2">
-                        <a href="{% url 'compare' %}" class="btn btn-outline-primary btn-sm text-start py-2">
-                            &bull; Перейти к сравнению срезов планов &rarr;
-                        </a>
-                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm text-start py-2">
-                            &bull; Открыть Аналитический дашборд &rarr;
-                        </a>
-                        <a href="{% url 'upload_files' %}" class="btn btn-outline-secondary btn-sm text-start py-2">
-                            &bull; Вернуться в реестр импорта файлов &rarr;
-                        </a>
-                    </div>
+        <!-- Карточка навигации -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
+                <h6 class="fw-bold mb-2" style="color: var(--brand-navy);">Навигация по модулям</h6>
+                <p class="text-muted small mb-3">После формирования среза перейдите к сопоставлению прогнозов или к аналитическому дашборду.</p>
+                
+                <div class="d-flex flex-column gap-2 mt-auto">
+                    <a href="{% url 'compare' %}" class="btn btn-outline-primary btn-sm text-start py-2 rounded-2">
+                        &bull; Перейти к сравнению срезов планов &rarr;
+                    </a>
+                    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm text-start py-2 rounded-2">
+                        &bull; Открыть Аналитический дашборд &rarr;
+                    </a>
+                    <a href="{% url 'upload_files' %}" class="btn btn-outline-secondary btn-sm text-start py-2 rounded-2">
+                        &bull; Вернуться в реестр импорта файлов &rarr;
+                    </a>
                 </div>
             </div>
         </div>
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+</div>
+{% endblock %}

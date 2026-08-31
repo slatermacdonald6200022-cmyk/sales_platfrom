@@ -5,6 +5,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
 from django.core.cache import cache
+import openpyxl
+
+from .processors.compare_engine import get_available_snapshot_dates, compare_snapshots
 
 MANAGERS_LIST = [
     {'id': 'tsarev', 'name': 'Царев Михаил', 'username': 'tsarev'},
@@ -28,8 +31,8 @@ def check_is_admin(user):
     return bool(profile and profile.role in ['analyst', 'director'])
 
 
-def get_instant_file_info(file_path):
-    """Мгновенное получение данных из файловой системы без чтения Excel (0.001 сек)"""
+def get_quick_file_meta(file_path):
+    """Мгновенное получение метаданных Excel без повторного тяжелого парсинга"""
     if not os.path.exists(file_path):
         return None
 
@@ -42,17 +45,35 @@ def get_instant_file_info(file_path):
     else:
         size_str = f"{round(size_bytes / 1024, 1)} КБ"
 
-    # Структуру берем только из кэша (если считалась при загрузке)
-    cache_key = f"excel_meta_{os.path.basename(file_path)}"
-    meta = cache.get(cache_key) or {'rows': '—', 'cols': '—', 'sheets_count': 1, 'sheet_names': 'Основной'}
+    cache_key = f"excel_meta_{os.path.basename(file_path)}_{stat.st_mtime}"
+    meta = cache.get(cache_key)
+
+    if not meta:
+        try:
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            sheet = wb.active
+            sheet_names = ", ".join(wb.sheetnames)
+            sheets_count = len(wb.sheetnames)
+            rows = sheet.max_row or 0
+            cols = sheet.max_column or 0
+            wb.close()
+            meta = {
+                'rows': rows,
+                'cols': cols,
+                'sheets_count': sheets_count,
+                'sheet_names': sheet_names
+            }
+            cache.set(cache_key, meta, timeout=86400 * 7)
+        except Exception:
+            meta = {'rows': '—', 'cols': '—', 'sheets_count': '—', 'sheet_names': '—'}
 
     return {
         'modified': modified_time,
         'size': size_str,
-        'rows': meta.get('rows', '—'),
-        'cols': meta.get('cols', '—'),
-        'sheets_count': meta.get('sheets_count', 1),
-        'sheet_names': meta.get('sheet_names', '—')
+        'rows': meta['rows'],
+        'cols': meta['cols'],
+        'sheets_count': meta['sheets_count'],
+        'sheet_names': meta['sheet_names']
     }
 
 
@@ -77,7 +98,7 @@ def scan_raw_directory(upload_dir):
         # 1. 1C:ERP
         if fname.startswith('fact_1c_') or '1c' in fname_lower or 'факт' in fname_lower:
             orig_name = fname.replace('fact_1c_', '', 1) if fname.startswith('fact_1c_') else fname
-            info = get_instant_file_info(fpath)
+            info = get_quick_file_meta(fpath)
             if info:
                 fact_1c_info = {
                     'stored_filename': fname,
@@ -93,7 +114,7 @@ def scan_raw_directory(upload_dir):
             surname = mgr['name'].lower().split()[0]
             if fname.startswith(prefix) or surname in fname_lower:
                 orig_name = fname.replace(prefix, '', 1) if fname.startswith(prefix) else fname
-                info = get_instant_file_info(fpath)
+                info = get_quick_file_meta(fpath)
                 if info:
                     manager_files[mgr_id] = {
                         'stored_filename': fname,
@@ -120,14 +141,14 @@ def remove_old_manager_files(upload_dir, mgr_id):
 
 @login_required
 def upload_view(request):
-    """Сверхбыстрый модуль загрузки файлов"""
+    """Модуль загрузки исходных файлов"""
     user = request.user
     is_admin = check_is_admin(user)
     upload_dir = os.path.join(settings.BASE_DIR, 'data', 'raw')
     os.makedirs(upload_dir, exist_ok=True)
 
     if request.method == 'POST':
-        # 1. Загрузка 1С (Админ)
+        # 1. Загрузка 1С (Администратор)
         if is_admin and 'file_1c' in request.FILES:
             f_1c = request.FILES['file_1c']
             for fname in os.listdir(upload_dir):
@@ -142,6 +163,7 @@ def upload_view(request):
             with open(dest_path, 'wb+') as dest:
                 for chunk in f_1c.chunks():
                     dest.write(chunk)
+            get_quick_file_meta(dest_path)
             messages.success(request, f'Выгрузка 1С «{f_1c.name}» сохранена.')
             return redirect('upload_files')
 
@@ -167,6 +189,7 @@ def upload_view(request):
                 with open(dest_path, 'wb+') as dest:
                     for chunk in m_file.chunks():
                         dest.write(chunk)
+                get_quick_file_meta(dest_path)
                 messages.success(request, f'Файл для менеджера {mgr["name"]} сохранен.')
                 return redirect('upload_files')
 
@@ -248,5 +271,42 @@ def readiness_view(request):
 
 @login_required
 def compare_view(request):
-    """Модуль сравнения срезов"""
-    return render(request, 'uploads/compare.html')
+    """Модуль сопоставления исторических срезов планов и расчета дельты"""
+    is_admin = check_is_admin(request.user)
+
+    # 1. Сканирование реально существующих папок со срезами планов
+    raw_dates = get_available_snapshot_dates(base_dir=os.path.join(settings.BASE_DIR, 'data', 'processed', 'snapshots'))
+    available_slices = [{'id': d, 'name': f"Срез планов от {d}"} for d in raw_dates]
+
+    slice_a = request.GET.get('slice_a', '')
+    slice_b = request.GET.get('slice_b', '')
+    manager_filter = request.GET.get('manager', 'all')
+
+    # Ограничение видимости срезов для менеджера
+    if not is_admin:
+        manager_filter = request.user.username
+
+    comparison_result = None
+    is_calculated = False
+
+    if slice_a and slice_b and slice_a in raw_dates and slice_b in raw_dates:
+        comparison_result = compare_snapshots(
+            date_a=slice_a,
+            date_b=slice_b,
+            manager_filter=manager_filter,
+            base_dir=os.path.join(settings.BASE_DIR, 'data', 'processed', 'snapshots')
+        )
+        is_calculated = comparison_result is not None
+
+    context = {
+        'is_admin': is_admin,
+        'available_slices': available_slices,
+        'managers': MANAGERS_LIST,
+        'slice_a': slice_a,
+        'slice_b': slice_b,
+        'manager_filter': manager_filter,
+        'is_calculated': is_calculated,
+        'summary': comparison_result['summary'] if is_calculated else None,
+        'comparison_rows': comparison_result['rows'] if is_calculated else [],
+    }
+    return render(request, 'uploads/compare.html', context)

@@ -14,12 +14,9 @@
             </p>
         </div>
         <div class="d-flex gap-2">
-            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-                &larr; Главное меню
-            </a>
-            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm rounded-pill px-3" style="background-color: #0B2545; border: none;">
-                Перейти к дашборду &rarr;
-            </a>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">&larr; Главное меню</a>
+            <a href="{% url 'compare' %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">📊 Сравнение срезов</a>
+            <a href="{% url 'dashboard' %}" class="btn btn-dark btn-sm rounded-pill px-3">Перейти к дашборду &rarr;</a>
         </div>
     </div>
 
