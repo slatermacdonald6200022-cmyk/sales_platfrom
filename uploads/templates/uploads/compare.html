@@ -112,16 +112,20 @@
         </div>
 
         <div class="table-responsive">
-            <table class="table table-hover table-bordered align-middle mb-0" style="font-size: 0.85rem;">
+            <table class="table table-hover table-bordered align-middle mb-0" id="comparisonTable" style="font-size: 0.85rem;">
                 <thead class="table-dark" style="background-color: var(--brand-navy);">
                     <tr>
-                        <th>Менеджер</th>
-                        <th>Клиент</th>
-                        <th>Артикул</th>
-                        <th class="text-end">Срез А (шт.)</th>
-                        <th class="text-end">Срез Б (шт.)</th>
-                        <th class="text-end">Дельта (&Delta;, шт.)</th>
-                        <th class="text-end">Изм. (%)</th>
+                        <th style="cursor: pointer;" onclick="sortTable(0, 'str')">Менеджер ⬍</th>
+                        <th style="cursor: pointer;" onclick="sortTable(1, 'str')">Клиент ⬍</th>
+                        <th style="cursor: pointer;" onclick="sortTable(2, 'str')">Артикул ⬍</th>
+                        <th class="text-end" style="cursor: pointer;" onclick="sortTable(3, 'num')">Срез А (шт.) ⬍</th>
+                        <th class="text-end" style="cursor: pointer;" onclick="sortTable(4, 'num')">Срез Б (шт.) ⬍</th>
+                        <th class="text-end text-warning" style="cursor: pointer; user-select: none;" onclick="sortTable(5, 'num')" title="Нажмите для сортировки по дельте">
+                            Дельта (&Delta;, шт.) <span id="sortIcon5">▼</span>
+                        </th>
+                        <th class="text-end" style="cursor: pointer; user-select: none;" onclick="sortTable(6, 'num')" title="Нажмите для сортировки по %">
+                            Изм. (%) ⬍
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -131,12 +135,12 @@
                                 <td class="fw-semibold">{{ row.manager }}</td>
                                 <td>{{ row.client }}</td>
                                 <td>{{ row.article }}</td>
-                                <td class="text-end">{{ row.val_a }}</td>
-                                <td class="text-end">{{ row.val_b }}</td>
-                                <td class="text-end fw-bold {% if row.delta_num < 0 %}text-danger{% elif row.delta_num > 0 %}text-success{% else %}text-muted{% endif %}">
+                                <td class="text-end" data-val="{{ row.val_a|cut:' '|cut:',' }}">{{ row.val_a }}</td>
+                                <td class="text-end" data-val="{{ row.val_b|cut:' '|cut:',' }}">{{ row.val_b }}</td>
+                                <td class="text-end fw-bold {% if row.delta_num < 0 %}text-danger{% elif row.delta_num > 0 %}text-success{% else %}text-muted{% endif %}" data-val="{{ row.delta_num }}">
                                     {{ row.delta }}
                                 </td>
-                                <td class="text-end">{{ row.pct_change }}%</td>
+                                <td class="text-end" data-val="{{ row.pct_change|cut:'+'|cut:'%' }}">{{ row.pct_change }}%</td>
                             </tr>
                         {% endfor %}
                     {% else %}
@@ -156,4 +160,42 @@
     </div>
 
 </div>
+
+<script>
+let sortDirections = {};
+
+function sortTable(columnIndex, type) {
+    const table = document.getElementById("comparisonTable");
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    if (rows.length === 0 || rows[0].querySelectorAll("td").length <= 1) return;
+
+    // Переключаем направление (по умолчанию для чисел начинаем с убывания)
+    const isAscending = sortDirections[columnIndex] === true;
+    sortDirections[columnIndex] = !isAscending;
+
+    rows.sort((rowA, rowB) => {
+        const cellA = rowA.children[columnIndex];
+        const cellB = rowB.children[columnIndex];
+
+        let valA = cellA.getAttribute("data-val") || cellA.innerText.trim();
+        let valB = cellB.getAttribute("data-val") || cellB.innerText.trim();
+
+        if (type === 'num') {
+            valA = parseFloat(String(valA).replace(/\s+/g, '').replace(',', '.')) || 0;
+            valB = parseFloat(String(valB).replace(/\s+/g, '').replace(',', '.')) || 0;
+            return isAscending ? valA - valB : valB - valA;
+        } else {
+            return isAscending
+                ? valA.localeCompare(valB, 'ru')
+                : valB.localeCompare(valA, 'ru');
+        }
+    });
+
+    // Очищаем и заново вставляем отсортированные строки
+    tbody.innerHTML = "";
+    rows.forEach(r => tbody.appendChild(r));
+}
+</script>
 {% endblock %}
