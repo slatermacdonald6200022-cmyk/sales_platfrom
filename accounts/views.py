@@ -14,6 +14,7 @@ FINAL_DIR = DATA_DIR / "processed" / "final"
 
 
 def get_latest_final_file():
+    """Находит самый свежий файл витрины FINAL_SALES_FACT_TABLE.xlsx."""
     if not FINAL_DIR.exists():
         return None
     final_files = sorted(list(FINAL_DIR.glob("**/FINAL_SALES_FACT_TABLE.xlsx")), reverse=True)
@@ -21,27 +22,35 @@ def get_latest_final_file():
 
 
 def format_currency(val):
+    """Форматирует денежные показатели в юанях."""
     if val is None or np.isnan(val) or val == 0:
-        return "0,00"
-    return f"{val:,.2f}".replace(",", " ").replace(".", ",")
+        return "0 ¥"
+    return f"{val:,.0f}".replace(",", " ") + " ¥"
+
+
+def format_percent(val):
+    """Форматирует процентные показатели."""
+    if val is None or np.isnan(val) or val == 0:
+        return "0.0%"
+    return f"{val:.1f}%"
 
 
 def get_percent_color(pct):
-    """Цветовой градиент для процентов выполнения."""
+    """Цветовая шкала для процентов."""
     if pct is None or np.isnan(pct):
         return "#64748b"
     if pct >= 130:
-        return "#0f5132"  # Насыщенный темно-зеленый
+        return "#0f5132"
     elif pct >= 100:
-        return "#198754"  # Зеленый
+        return "#198754"
     elif pct >= 90:
-        return "#84cc16"  # Лаймовый
+        return "#84cc16"
     elif pct >= 75:
-        return "#eab308"  # Желтый
+        return "#eab308"
     elif pct >= 50:
-        return "#f97316"  # Оранжевый
+        return "#f97316"
     else:
-        return "#dc2626"  # Красный
+        return "#dc2626"
 
 
 def login_view(request):
@@ -68,10 +77,6 @@ def logout_view(request):
 def home_view(request):
     return render(request, 'accounts/home.html')
 
-@login_required
-def readiness_view(request):
-    """При переходе на этап готовности сразу открываем страницу с прогресс-баром и предпросмотром."""
-    return redirect('processing_page')
 
 @login_required
 def profile_view(request):
@@ -101,7 +106,7 @@ def dashboard_view(request):
     if not latest_file or not latest_file.exists():
         return render(request, 'accounts/dashboard.html', {
             'has_data': False,
-            'message': 'Витрина данных еще не сформирована. Выполните обработку на Шаге 2.'
+            'message': 'Витрина данных еще не сформирована. Выполните слияние на Шаге 2.'
         })
 
     try:
@@ -112,6 +117,7 @@ def dashboard_view(request):
             'message': f'Ошибка при чтении витрины данных: {str(e)}'
         })
 
+    # Приведение типов числовых столбцов
     for num_col in ['AOP, CNY', 'Прогноз, CNY', 'Факт, CNY', 'AOP, шт', 'Прогноз, шт', 'Факт, шт']:
         if num_col in df.columns:
             df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
@@ -121,19 +127,49 @@ def dashboard_view(request):
     if 'Номер месяца' in df.columns:
         df['Номер месяца'] = pd.to_numeric(df['Номер месяца'], errors='coerce').fillna(1).astype(int)
 
+    # Ограничение видимости для обычного менеджера
     if not is_admin and manager_name and 'Менеджер' in df.columns:
         df = df[df['Менеджер'].astype(str).str.contains(manager_name, case=False, na=False)]
 
-    managers_list = sorted([str(m) for m in df['Менеджер'].dropna().unique() if str(m).strip()]) if 'Менеджер' in df.columns else []
-    clients_list = sorted([str(c) for c in df['Клиент'].dropna().unique() if str(c).strip()]) if 'Клиент' in df.columns else []
+    # Параметры из GET-запроса
+    selected_manager = request.GET.get('manager', '')
+    selected_article = request.GET.get('article', '')
+    selected_client = request.GET.get('client', '')
+    selected_period = request.GET.get('period', 'current_year')
 
-    if 'Наименование' in df.columns and df['Наименование'].notna().any():
-        articles_list = sorted([str(a) for a in df['Наименование'].dropna().unique() if str(a).strip()])
-    elif 'Артикул' in df.columns:
-        articles_list = sorted([str(a) for a in df['Артикул'].dropna().unique() if str(a).strip()])
+    # -------------------------------------------------------------
+    # СОЗАВИСИМЫЕ СПИСКИ ДЛЯ СЕЛЕКТОРОВ
+    # -------------------------------------------------------------
+    # 1. Менеджеры
+    managers_list = sorted([str(m) for m in df['Менеджер'].dropna().unique() if str(m).strip()]) if 'Менеджер' in df.columns else []
+
+    # 2. Срез по менеджеру
+    mgr_df = df.copy()
+    if selected_manager:
+        mgr_df = mgr_df[mgr_df['Менеджер'] == selected_manager]
+
+    # 3. Клиенты: все клиенты менеджера (не сужаются по выбранному товару)
+    clients_list = sorted([str(c) for c in mgr_df['Клиент'].dropna().unique() if str(c).strip()]) if 'Клиент' in mgr_df.columns else []
+
+    # 4. Товары: товары менеджера, но если выбран клиент — только товары этого клиента
+    art_df = mgr_df.copy()
+    if selected_client:
+        art_df = art_df[art_df['Клиент'] == selected_client]
+
+    if 'Наименование' in art_df.columns and art_df['Наименование'].notna().any():
+        articles_list = sorted([str(a) for a in art_df['Наименование'].dropna().unique() if str(a).strip()])
+    elif 'Артикул' in art_df.columns:
+        articles_list = sorted([str(a) for a in art_df['Артикул'].dropna().unique() if str(a).strip()])
     else:
         articles_list = []
 
+    # Сброс невалидных параметров
+    if selected_client and selected_client not in clients_list:
+        selected_client = ''
+    if selected_article and selected_article not in articles_list:
+        selected_article = ''
+
+    # 5. Периоды
     available_years = sorted(df['Год'].dropna().unique().astype(int).tolist())
     periods_options = [
         ('current_year', 'Весь 2026 год (Текущий)'),
@@ -149,11 +185,9 @@ def dashboard_view(request):
         m_name = prow['Месяц'] if pd.notna(prow['Месяц']) else f"Месяц {m_num}"
         periods_options.append((f"month_{y}_{m_num:02d}", f"{m_name} {y}"))
 
-    selected_manager = request.GET.get('manager', '')
-    selected_article = request.GET.get('article', '')
-    selected_client = request.GET.get('client', '')
-    selected_period = request.GET.get('period', 'current_year')
-
+    # -------------------------------------------------------------
+    # РАСЧЕТ ДАННЫХ ДЛЯ KPI И ГРАФИКОВ
+    # -------------------------------------------------------------
     target_year = 2026
     target_month = 5
 
@@ -211,31 +245,31 @@ def dashboard_view(request):
     m_forecast = float(f_month_slice['Прогноз, CNY'].sum())
     m_fact = float(f_month_slice['Факт, CNY'].sum())
 
-    y_aop = float(f_ytd_slice['AOP, CNY'].sum())
-    y_full_forecast = float(f_year_slice['Прогноз, CNY'].sum())
-    y_fact = float(f_ytd_slice['Факт, CNY'].sum())
+    ytd_aop = float(f_ytd_slice['AOP, CNY'].sum())
+    full_year_forecast = float(f_year_slice['Прогноз, CNY'].sum())
+    ytd_fact = float(f_ytd_slice['Факт, CNY'].sum())
 
-    pct_month_aop = round((m_fact / m_aop * 100), 2) if m_aop > 0 else 0.0
-    pct_ytd_aop = round((y_fact / y_aop * 100), 2) if y_aop > 0 else 0.0
+    pct_month_aop = (m_fact / m_aop * 100) if m_aop > 0 else 0.0
+    pct_ytd_aop = (ytd_fact / ytd_aop * 100) if ytd_aop > 0 else 0.0
     ytd_forecast_sum = float(f_ytd_slice['Прогноз, CNY'].sum())
-    pct_ytd_forecast = round((y_fact / ytd_forecast_sum * 100), 2) if ytd_forecast_sum > 0 else 0.0
+    pct_ytd_forecast = (ytd_fact / ytd_forecast_sum * 100) if ytd_forecast_sum > 0 else 0.0
 
     kpi = {
         'month_aop': format_currency(m_aop),
         'month_forecast': format_currency(m_forecast),
         'month_fact': format_currency(m_fact),
-        'ytd_aop': format_currency(y_aop),
-        'full_year_forecast': format_currency(y_full_forecast),
-        'ytd_fact': format_currency(y_fact),
-        'pct_month_aop': f"{pct_month_aop:.2f}".replace('.', ','),
-        'pct_ytd_aop': f"{pct_ytd_aop:.2f}".replace('.', ','),
-        'pct_ytd_forecast': f"{pct_ytd_forecast:.2f}".replace('.', ','),
+        'ytd_aop': format_currency(ytd_aop),
+        'full_year_forecast': format_currency(full_year_forecast),
+        'ytd_fact': format_currency(ytd_fact),
+        'pct_month_aop': format_percent(pct_month_aop),
+        'pct_ytd_aop': format_percent(pct_ytd_aop),
+        'pct_ytd_forecast': format_percent(pct_ytd_forecast),
         'color_month_aop': get_percent_color(pct_month_aop),
         'color_ytd_aop': get_percent_color(pct_ytd_aop),
         'color_ytd_forecast': get_percent_color(pct_ytd_forecast),
     }
 
-    # 2. ВЕРХНИЙ ДИНАМИЧЕСКИЙ ГРАФИК ПО МЕНЕДЖЕРАМ
+    # 2. Верхний динамический график (по менеджерам)
     dyn_managers = []
     dyn_aop = []
     dyn_forecast = []
@@ -254,7 +288,7 @@ def dashboard_view(request):
             dyn_forecast.append(round(float(r['Прогноз, CNY']), 2))
             dyn_fact.append(round(float(r['Факт, CNY']), 2))
 
-    # 3. НИЖНИЙ СТАТИЧНЫЙ ГРАФИК ПО МЕСЯЦАМ КОМПАНИИ
+    # 3. Нижний статичный график (по 12 месяцам компании)
     static_month_labels = [
         "01 Январь", "02 Февраль", "03 Март", "04 Апрель", "05 Май", "06 Июнь",
         "07 Июль", "08 Август", "09 Сентябрь", "10 Октябрь", "11 Ноябрь", "12 Декабрь"

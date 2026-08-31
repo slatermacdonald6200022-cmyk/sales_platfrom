@@ -8,50 +8,92 @@
     <!-- Панель селекторов фильтрации -->
     <div class="card p-3 mb-4 bg-white border-0 shadow-sm rounded-3">
         <form id="filterForm" method="get" action="{% url 'dashboard' %}">
-            <div class="row g-3">
+            <div class="row g-2 align-items-end">
+
+                <!-- 1. Менеджер -->
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Менеджер</label>
-                    <select name="manager" class="form-select form-select-sm" onchange="this.form.submit();">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-muted mb-0">Менеджер</label>
+                        {% if selected_manager %}
+                            <a href="javascript:void(0)" onclick="clearSingleFilter('manager')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
+                        {% endif %}
+                    </div>
+                    <select id="select_manager" name="manager" class="form-select form-select-sm" onchange="document.getElementById('select_client').value=''; document.getElementById('select_article').value=''; this.form.submit();">
                         <option value="">Все менеджеры</option>
                         {% for m in managers_list %}
                             <option value="{{ m }}" {% if selected_manager == m %}selected{% endif %}>{{ m }}</option>
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- 2. Клиент -->
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Наименование</label>
-                    <select name="article" class="form-select form-select-sm" onchange="this.form.submit();">
-                        <option value="">Вся номенклатура</option>
-                        {% for art in articles_list %}
-                            <option value="{{ art }}" {% if selected_article == art %}selected{% endif %}>{{ art }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Клиент</label>
-                    <select name="client" class="form-select form-select-sm" onchange="this.form.submit();">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-muted mb-0">Клиент</label>
+                        {% if selected_client %}
+                            <a href="javascript:void(0)" onclick="clearSingleFilter('client')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
+                        {% endif %}
+                    </div>
+                    <select id="select_client" name="client" class="form-select form-select-sm" onchange="document.getElementById('select_article').value=''; this.form.submit();">
                         <option value="">Все клиенты</option>
                         {% for c in clients_list %}
                             <option value="{{ c }}" {% if selected_client == c %}selected{% endif %}>{{ c }}</option>
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- 3. Товар / Артикул -->
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Выбранный период</label>
-                    <select name="period" class="form-select form-select-sm" onchange="this.form.submit();">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-muted mb-0">Наименование</label>
+                        {% if selected_article %}
+                            <a href="javascript:void(0)" onclick="clearSingleFilter('article')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
+                        {% endif %}
+                    </div>
+                    <select id="select_article" name="article" class="form-select form-select-sm" onchange="this.form.submit();">
+                        <option value="">Вся номенклатура</option>
+                        {% for art in articles_list %}
+                            <option value="{{ art }}" {% if selected_article == art %}selected{% endif %}>{{ art }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 4. Период -->
+                <div class="col-md-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-muted mb-0">Период</label>
+                        {% if selected_period != 'current_year' %}
+                            <a href="javascript:void(0)" onclick="clearPeriodFilter()" class="text-danger small text-decoration-none" title="Сбросить период" style="font-size: 0.75rem;">✕ Сброс</a>
+                        {% endif %}
+                    </div>
+                    <select id="select_period" name="period" class="form-select form-select-sm" onchange="this.form.submit();">
                         {% for p_val, p_name in periods_options %}
                             <option value="{{ p_val }}" {% if selected_period == p_val %}selected{% endif %}>{{ p_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- 5. Кнопка сброса всех фильтров -->
+                <div class="col-md-1">
+                    {% if selected_manager or selected_article or selected_client or selected_period != 'current_year' %}
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-danger btn-sm w-100 py-1" style="font-size: 0.8rem;">
+                            Сбросить
+                        </a>
+                    {% else %}
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 py-1 text-muted" disabled style="font-size: 0.8rem; opacity: 0.5;">
+                            Сбросить
+                        </button>
+                    {% endif %}
+                </div>
+
             </div>
         </form>
     </div>
 
-    <!-- ВЕРХНИЙ БЛОК: Динамический график по менеджерам (слева) + 9 Карточек KPI (справа) -->
+    <!-- ВЕРХНИЙ БЛОК: Динамический график (слева) + 9 Карточек KPI (справа) -->
     <div class="row g-4 mb-4">
 
-        <!-- Слева: Динамический график по выбранным менеджерам -->
+        <!-- Слева: Динамический график по менеджерам -->
         <div class="col-lg-4">
             <div class="card p-3 bg-white border-0 shadow-sm rounded-3 h-100 d-flex flex-column">
                 <div class="small fw-bold text-muted mb-2">Исполнение планов по менеджерам (Динамический)</div>
@@ -115,24 +157,24 @@
                     </div>
                 </div>
 
-                <!-- 3. Процентные показатели с цветовым градиентом -->
+                <!-- 3. Процентные показатели -->
                 <div>
                     <h6 class="fw-bold mb-2 text-dark">Процентные показатели</h6>
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <div class="card p-3 shadow-sm bg-white" style="border-left: 4px solid {{ kpi.color_month_aop }};">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_month_aop }} !important;">
                                 <div class="text-muted small mb-1">Факт / AOP за выбранный месяц, %</div>
                                 <div class="fs-4 fw-bold" style="color: {{ kpi.color_month_aop }};">{{ kpi.pct_month_aop }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="card p-3 shadow-sm bg-white" style="border-left: 4px solid {{ kpi.color_ytd_aop }};">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_ytd_aop }} !important;">
                                 <div class="text-muted small mb-1">Факт / AOP с начала года, %</div>
                                 <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_aop }};">{{ kpi.pct_ytd_aop }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="card p-3 shadow-sm bg-white" style="border-left: 4px solid {{ kpi.color_ytd_forecast }};">
+                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_ytd_forecast }} !important;">
                                 <div class="text-muted small mb-1">Факт / Прогноз с начала года, %</div>
                                 <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_forecast }};">{{ kpi.pct_ytd_forecast }}</div>
                             </div>
@@ -161,10 +203,32 @@
 
 </div>
 
-<!-- Скрипт инициализации графиков Chart.js -->
+<!-- Инициализация Chart.js и функций сброса -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // 1. Верхний динамический график по менеджерам
+    function clearSingleFilter(filterName) {
+        const el = document.getElementById('select_' + filterName);
+        if (el) {
+            el.value = '';
+            if (filterName === 'manager') {
+                document.getElementById('select_client').value = '';
+                document.getElementById('select_article').value = '';
+            } else if (filterName === 'client') {
+                document.getElementById('select_article').value = '';
+            }
+            document.getElementById('filterForm').submit();
+        }
+    }
+
+    function clearPeriodFilter() {
+        const el = document.getElementById('select_period');
+        if (el) {
+            el.value = 'current_year';
+            document.getElementById('filterForm').submit();
+        }
+    }
+
+    // 1. Верхний динамический график
     const ctxDyn = document.getElementById('dynamicManagersChart').getContext('2d');
     new Chart(ctxDyn, {
         type: 'bar',
@@ -174,7 +238,7 @@
                 {
                     label: 'AOP, CNY',
                     data: {{ dyn_aop|safe }},
-                    backgroundColor: '#7dd3fc', // Голубой
+                    backgroundColor: '#7dd3fc',
                     borderRadius: 3,
                     barPercentage: 0.8,
                     categoryPercentage: 0.8
@@ -182,7 +246,7 @@
                 {
                     label: 'Прогноз, CNY',
                     data: {{ dyn_forecast|safe }},
-                    backgroundColor: '#94a3b8', // Серо-голубой
+                    backgroundColor: '#94a3b8',
                     borderRadius: 3,
                     barPercentage: 0.8,
                     categoryPercentage: 0.8
@@ -190,7 +254,7 @@
                 {
                     label: 'Факт, CNY',
                     data: {{ dyn_fact|safe }},
-                    backgroundColor: '#78716c', // Графитово-коричневый
+                    backgroundColor: '#78716c',
                     borderRadius: 3,
                     barPercentage: 0.8,
                     categoryPercentage: 0.8
@@ -219,7 +283,7 @@
         }
     });
 
-    // 2. Нижний статичный график по 12 месяцам компании
+    // 2. Нижний статичный график
     const ctxStatic = document.getElementById('staticMonthsChart').getContext('2d');
     new Chart(ctxStatic, {
         type: 'bar',
