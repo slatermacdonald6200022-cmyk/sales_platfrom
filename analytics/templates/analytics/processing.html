@@ -1,64 +1,218 @@
 {% extends "accounts/base.html" %}
-{% block title %}Обработка данных | Sales Analytics{% endblock %}
+
+{% block title %}Модуль 02. Обработка данных | Аналитическая платформа{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-gear-wide-connected text-warning me-2"></i>Панель запуска ETL-пайплайна</h3>
-        <p class="text-muted mb-0">Нормализация структуры и слияние файлов менеджеров с выгрузкой 1С.</p>
-    </div>
-    <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>На главную</a>
-</div>
+<div class="container-fluid px-4 py-3">
 
-<div class="card card-custom p-4 mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <!-- Верхний заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
         <div>
-            <h5 class="fw-bold mb-1">Готовность: <span class="badge bg-success">Все файлы на месте</span></h5>
-            <small class="text-muted">Готово к трансформации UNPIVOT и сопоставлению ключей</small>
+            <h4 class="fw-bold mb-1" style="color: #0B2545;">Модуль 02. Консолидация и трансформация данных (ETL)</h4>
+            <p class="text-muted small mb-0">
+                Автоматическое сведение планов продаж менеджеров, выравнивание временных рядов и объединение с фактом 1С:ERP.
+            </p>
         </div>
-        <button class="btn btn-warning btn-lg fw-bold shadow-sm">
-            <i class="bi bi-play-fill me-1"></i> Запустить ETL обработку
-        </button>
+        <div class="d-flex gap-2">
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                &larr; Главное меню
+            </a>
+            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm rounded-pill px-3" style="background-color: #0B2545; border: none;">
+                Перейти к дашборду &rarr;
+            </a>
+        </div>
     </div>
 
-    <div class="mt-3">
-        <div class="d-flex justify-content-between mb-1">
-            <span class="small text-muted">Прогресс обработки:</span>
-            <span class="small fw-bold text-primary">0%</span>
+    <!-- Блок запуска и прогресс-бара -->
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+            <div>
+                <h5 class="fw-bold mb-1" style="color: #0B2545;">Панель управления пайплайном</h5>
+                <div class="text-muted small">
+                    Алгоритм выполнит нормализацию (Unpivot), проверку номенклатуры и генерацию витрины <code>FINAL_SALES_FACT_TABLE.xlsx</code>.
+                </div>
+            </div>
+            <div>
+                {% if is_admin %}
+                    <button class="btn btn-danger btn-lg px-4 fw-bold shadow-sm" id="btnRunEtl" onclick="startETL()">
+                        ▶ Запустить обработку данных
+                    </button>
+                {% else %}
+                    <span class="badge bg-secondary px-3 py-2">Запуск доступен только Администратору</span>
+                {% endif %}
+            </div>
         </div>
-        <div class="progress" style="height: 16px; border-radius: 8px;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;"></div>
+
+        <!-- Контейнер прогресса -->
+        <div id="progressContainer" class="mt-2" style="display: none;">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small fw-semibold text-muted" id="stageText">Инициализация конвейера...</span>
+                <span class="small fw-bold text-primary" id="percentText">0%</span>
+            </div>
+            <div class="progress" style="height: 14px; border-radius: 7px; background-color: #E2E8F0;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+                     role="progressbar" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <div id="statusAlert" class="alert py-2 mt-3 small" style="display: none;"></div>
+    </div>
+
+    <!-- Блок предпросмотра витрины -->
+    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+                <h6 class="fw-bold mb-0 text-uppercase" style="color: #0B2545; letter-spacing: 0.5px;">
+                    Предпросмотр структуры данных (Первые 10 строк)
+                </h6>
+                <div class="text-muted small">
+                    Целевая витрина для аналитической отчетности и передачи в BI
+                </div>
+            </div>
+            <div>
+                <a href="{% url 'download_final_excel' %}" id="btnDownload"
+                   class="btn btn-outline-success btn-sm fw-bold px-3 py-2 rounded-pill {% if not file_exists %}disabled{% endif %}">
+                    ⬇ Скачать итоговый Excel (.xlsx)
+                </a>
+            </div>
+        </div>
+
+        <!-- Таблица предпросмотра -->
+        <div class="table-responsive border rounded-3" style="max-height: 480px;">
+            <table class="table table-hover table-bordered table-sm align-middle mb-0" id="previewTable" style="font-size: 0.82rem;">
+                <thead class="table-light sticky-top" style="background-color: #F8FAFC;">
+                    <tr id="tableHeaders">
+                        {% if columns %}
+                            {% for col in columns %}
+                                <th class="text-nowrap text-dark py-2 px-3">{{ col }}</th>
+                            {% endfor %}
+                        {% else %}
+                            <th class="py-2 px-3">Колонки витрины появятся после первой обработки</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    {% if preview_rows %}
+                        {% for row in preview_rows %}
+                            <tr>
+                                {% for cell in row %}
+                                    <td class="text-nowrap px-3">{{ cell }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr id="emptyRow">
+                            <td colspan="{{ columns|length|default:1 }}" class="text-center py-5 text-muted">
+                                Витрина данных еще не сформирована. Нажмите «Запустить обработку данных» выше.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
+
 </div>
 
-<div class="card card-custom p-4 mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-bold mb-0"><i class="bi bi-table me-2 text-secondary"></i>Предпросмотр (первые 10 строк)</h5>
-        <button class="btn btn-outline-success btn-sm fw-semibold">
-            <i class="bi bi-download me-1"></i> Скачать итоговый Excel
-        </button>
-    </div>
+<!-- Скрипт запуска и анимации прогресса -->
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
 
-    <div class="table-responsive">
-        <table class="table table-hover table-bordered align-middle small mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Год</th>
-                    <th>Месяц</th>
-                    <th>Менеджер</th>
-                    <th>Клиент</th>
-                    <th>AOP (План)</th>
-                    <th>Прогноз</th>
-                    <th>Факт 1С</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td colspan="7" class="text-center text-muted py-4">Нажмите «Запустить ETL обработку» для генерации витрины данных</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
+function startETL() {
+    const btn = document.getElementById('btnRunEtl');
+    const pContainer = document.getElementById('progressContainer');
+    const pBar = document.getElementById('progressBar');
+    const pText = document.getElementById('percentText');
+    const sText = document.getElementById('stageText');
+    const alertBox = document.getElementById('statusAlert');
+    const btnDownload = document.getElementById('btnDownload');
+
+    btn.disabled = true;
+    pContainer.style.display = 'block';
+    alertBox.style.display = 'none';
+
+    let progress = 10;
+    pBar.style.width = progress + '%';
+    pText.innerText = progress + '%';
+    sText.innerText = 'Чтение исходных Excel-планов менеджеров...';
+
+    const interval = setInterval(() => {
+        if (progress < 85) {
+            progress += 15;
+            pBar.style.width = progress + '%';
+            pText.innerText = progress + '%';
+            if (progress === 40) sText.innerText = 'Развертывание временных колонок (UNPIVOT)...';
+            if (progress === 70) sText.innerText = 'Сопоставление номенклатуры и слияние с 1С:ERP...';
+        }
+    }, 400);
+
+    fetch("{% url 'run_etl_api' %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCookie("csrftoken"),
+            "Content-Type": "application/json"
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        clearInterval(interval);
+        if (data.status === 'success') {
+            pBar.style.width = '100%';
+            pText.innerText = '100%';
+            sText.innerText = 'Витрина успешно сформирована!';
+
+            alertBox.className = 'alert alert-success py-2 mt-3 small';
+            alertBox.innerText = `Успешно! Обработано ${data.rows_count} строк. Предпросмотр обновлен.`;
+            alertBox.style.display = 'block';
+
+            btnDownload.classList.remove('disabled');
+
+            // Обновляем шапку и строки таблицы
+            if (data.columns && data.preview) {
+                renderTable(data.columns, data.preview);
+            }
+        } else {
+            pBar.classList.remove('bg-danger');
+            pBar.classList.add('bg-warning');
+            alertBox.className = 'alert alert-danger py-2 mt-3 small';
+            alertBox.innerText = data.message;
+            alertBox.style.display = 'block';
+            sText.innerText = 'Ошибка выполнения';
+        }
+        btn.disabled = false;
+    })
+    .catch(err => {
+        clearInterval(interval);
+        pBar.classList.add('bg-warning');
+        alertBox.className = 'alert alert-danger py-2 mt-3 small';
+        alertBox.innerText = 'Ошибка сети или сбой на сервере: ' + err;
+        alertBox.style.display = 'block';
+        btn.disabled = false;
+    });
+}
+
+function renderTable(columns, rows) {
+    const headersTr = document.getElementById('tableHeaders');
+    const tbody = document.getElementById('tableBody');
+
+    headersTr.innerHTML = columns.map(c => `<th class="text-nowrap text-dark py-2 px-3">${c}</th>`).join('');
+
+    tbody.innerHTML = rows.map(row => {
+        return `<tr>` + columns.map(col => `<td class="text-nowrap px-3">${row[col] !== undefined ? row[col] : ''}</td>`).join('') + `</tr>`;
+    }).join('');
+}
+</script>
 {% endblock %}

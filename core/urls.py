@@ -7,6 +7,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('accounts.urls')),          # Авторизация, главная и профиль
     path('uploads/', include('uploads.urls')),    # Загрузка файлов, ETL и сравнение
+    path('analytics/', include('analytics.urls')),  # <-- ДОБАВИТЬ ЭТУ СТРОКУ
 ]
 
 # Раздача медиафайлов (аватарок)

@@ -69,19 +69,21 @@ def parse_month_cell(val):
 
 
 def parse_metric_type(val):
-    """Определяет тип метрики: AOP или Forecast."""
+    """Определяет тип метрики: AOP, Forecast или Fact."""
     if pd.isna(val):
         return None
     s = str(val).lower()
 
-    # Игнорируем любые итоговые, рублевые или денежные колонки
+    # Игнорируем годовые итоговые и рублевые колонки
     if any(k in s for k in TOTAL_KEYWORDS):
         return 'ignore'
     if 'аор' in s or 'aop' in s or 'план' in s:
         return 'aop'
     if 'прогноз' in s or 'forecast' in s or 'план-прогноз' in s:
         return 'forecast'
-    if 'факт' in s or 'fact' in s or 'actual' in s or 'ком' in s:
+    if 'факт' in s or 'fact' in s or 'actual' in s:
+        return 'fact'
+    if 'ком' in s or 'comment' in s:
         return 'ignore'
     return None
 
@@ -109,7 +111,6 @@ def extract_manager_from_filename(filename):
 
 def process_manager_sheet(df, filename="", default_manager=""):
     """Разворачивание одного листа книги менеджера в плоскую таблицу (UNPIVOT)."""
-    # 1. Поиск строки шапки
     header_idx = None
     for i in range(min(15, len(df))):
         row_str = " ".join([str(x).lower() for x in df.iloc[i].dropna()])
@@ -124,7 +125,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
     header_row_main = df.iloc[header_idx]
     header_row_sub = df.iloc[header_idx + 1] if header_idx + 1 < len(df) else pd.Series(dtype=object)
 
-    # 2. Поиск базовых столбцов
     base_cols = {}
     for col_idx in range(df.shape[1]):
         val = str(header_row_main.iloc[col_idx]).lower()
@@ -134,7 +134,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
 
     data_df = df.iloc[header_idx + 2:].copy() if header_idx + 1 < len(df) else df.iloc[header_idx + 1:].copy()
 
-    # 3. Поиск помесячных колонок с защитой от годовых итогов
     month_blocks = []
     current_month = None
 
@@ -145,7 +144,7 @@ def process_manager_sheet(df, filename="", default_manager=""):
         top_str = str(top_val).lower() if pd.notna(top_val) else ""
         sub_str = str(sub_val).lower() if pd.notna(sub_val) else ""
 
-        # Если в верхней ячейке встретились маркеры годовых итогов — сбрасываем месяц
+        # Сброс месяца при обнаружении итоговых колонок
         if any(k in top_str for k in ['итого', 'всего', 'total', 'год', 'сумма', 'руб', 'rub']):
             current_month = None
 
@@ -155,8 +154,7 @@ def process_manager_sheet(df, filename="", default_manager=""):
 
         metric = parse_metric_type(sub_val) or parse_metric_type(top_val)
 
-        # Добавляем колонку, только если активен конкретный месяц и колонка не итоговая
-        if current_month and metric in ['aop', 'forecast']:
+        if current_month and metric in ['aop', 'forecast', 'fact']:
             month_blocks.append({
                 'month': current_month,
                 'metric': metric,
@@ -166,7 +164,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
     if not month_blocks or 'product_article' not in base_cols:
         return pd.DataFrame()
 
-    # Протяжка клиентов и поставщиков
     client_col = base_cols.get('client')
     if client_col is not None:
         data_df.iloc[:, client_col] = data_df.iloc[:, client_col].ffill()
@@ -188,7 +185,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
         if not raw_client or raw_client.lower() in ['nan', 'none', 'итого', 'всего']:
             continue
 
-        # Специфика Ушакова: консолидированный пул клиентов
         if is_ushakov or ';' in raw_client or len(raw_client) > 100:
             client_name = "Клиенты Ушакова (Пул)"
         else:
@@ -197,7 +193,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
         supp = normalize_text(row.iloc[supplier_col]) if supplier_col is not None else ""
         prod_name = normalize_text(row.iloc[base_cols['product_name']]) if 'product_name' in base_cols else ""
 
-        # Считывание базовой цены в CNY
         price_val = 0.0
         if 'price_cny' in base_cols:
             try:
@@ -206,7 +201,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
             except Exception:
                 price_val = 0.0
 
-        # Разворот месяцев
         row_months = {}
         for block in month_blocks:
             m = block['month']
@@ -218,18 +212,19 @@ def process_manager_sheet(df, filename="", default_manager=""):
                 num_val = 0.0
 
             if m not in row_months:
-                row_months[m] = {'aop': 0.0, 'forecast': 0.0}
+                row_months[m] = {'aop': 0.0, 'forecast': 0.0, 'fact': 0.0}
             row_months[m][met] = num_val
 
         for m_str, vals in row_months.items():
-            if vals['aop'] == 0 and vals['forecast'] == 0:
+            # Если все три показателя равны 0 — пропускаем пустой месяц
+            if vals['aop'] == 0 and vals['forecast'] == 0 and vals['fact'] == 0:
                 continue
 
             y_str, m_num = m_str.split('-')
             records.append({
                 'AOP, шт': vals['aop'],
                 'Прогноз, шт': vals['forecast'],
-                'Факт, шт': 0.0,
+                'Факт, шт': vals['fact'],
                 'Ключ клиента': client_name.lower(),
                 'Клиент': client_name,
                 'Менеджер': manager_val,
@@ -247,7 +242,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
 
 def normalize_all_managers(raw_dir="data/raw"):
     """Сканирует папку с планами менеджеров и объединяет их в плоскую таблицу."""
-    # Автопоиск альтернативных путей
     if not os.path.exists(raw_dir):
         for fallback in ["data/raw_plans", "data/raw", "data/raw_managers"]:
             if os.path.exists(fallback):
@@ -255,7 +249,6 @@ def normalize_all_managers(raw_dir="data/raw"):
                 break
         else:
             os.makedirs(raw_dir, exist_ok=True)
-            print(f"⚠️ Папка '{raw_dir}' создана. Положите в неё Excel-файлы менеджеров.")
             return pd.DataFrame()
 
     all_dfs = []
@@ -266,7 +259,6 @@ def normalize_all_managers(raw_dir="data/raw"):
     ]
 
     if not files:
-        print(f"⚠️ В папке '{raw_dir}' не найдено Excel-файлов планов.")
         return pd.DataFrame()
 
     for fname in files:
