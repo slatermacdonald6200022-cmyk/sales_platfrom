@@ -14,16 +14,23 @@
                 <div class="col-md-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label class="form-label small fw-bold text-muted mb-0">Менеджер</label>
-                        {% if selected_manager %}
+                        {% if is_admin and selected_manager %}
                             <a href="javascript:void(0)" onclick="clearSingleFilter('manager')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
                         {% endif %}
                     </div>
-                    <select id="select_manager" name="manager" class="form-select form-select-sm" onchange="document.getElementById('select_client').value=''; document.getElementById('select_article').value=''; this.form.submit();">
-                        <option value="">Все менеджеры</option>
-                        {% for m in managers_list %}
-                            <option value="{{ m }}" {% if selected_manager == m %}selected{% endif %}>{{ m }}</option>
-                        {% endfor %}
-                    </select>
+                    {% if is_admin %}
+                        <select id="select_manager" name="manager" class="form-select form-select-sm" onchange="document.getElementById('select_client').value=''; document.getElementById('select_article').value=''; this.form.submit();">
+                            <option value="">Все менеджеры</option>
+                            {% for m in managers_list %}
+                                <option value="{{ m }}" {% if selected_manager == m %}selected{% endif %}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    {% else %}
+                        <select id="select_manager" class="form-select form-select-sm" disabled>
+                            <option value="{{ selected_manager }}" selected>{{ selected_manager }}</option>
+                        </select>
+                        <input type="hidden" id="hidden_manager" name="manager" value="{{ selected_manager }}">
+                    {% endif %}
                 </div>
 
                 <!-- 2. Клиент -->
@@ -42,7 +49,7 @@
                     </select>
                 </div>
 
-                <!-- 3. Товар / Артикул -->
+                <!-- 3. Товар / Номенклатура -->
                 <div class="col-md-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label class="form-label small fw-bold text-muted mb-0">Наименование</label>
@@ -75,8 +82,8 @@
 
                 <!-- 5. Кнопка сброса всех фильтров -->
                 <div class="col-md-1">
-                    {% if selected_manager or selected_article or selected_client or selected_period != 'current_year' %}
-                        <a href="{% url 'dashboard' %}" class="btn btn-outline-danger btn-sm w-100 py-1" style="font-size: 0.8rem;">
+                    {% if filters_active %}
+                        <a href="javascript:void(0)" onclick="resetAllFilters()" class="btn btn-outline-danger btn-sm w-100 py-1" style="font-size: 0.8rem;">
                             Сбросить
                         </a>
                     {% else %}
@@ -203,7 +210,7 @@
 
 </div>
 
-<!-- Инициализация Chart.js и функций сброса -->
+<!-- Инициализация Chart.js и вспомогательных функций -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     function clearSingleFilter(filterName) {
@@ -211,10 +218,13 @@
         if (el) {
             el.value = '';
             if (filterName === 'manager') {
-                document.getElementById('select_client').value = '';
-                document.getElementById('select_article').value = '';
+                const clientEl = document.getElementById('select_client');
+                const artEl = document.getElementById('select_article');
+                if (clientEl) clientEl.value = '';
+                if (artEl) artEl.value = '';
             } else if (filterName === 'client') {
-                document.getElementById('select_article').value = '';
+                const artEl = document.getElementById('select_article');
+                if (artEl) artEl.value = '';
             }
             document.getElementById('filterForm').submit();
         }
@@ -226,6 +236,21 @@
             el.value = 'current_year';
             document.getElementById('filterForm').submit();
         }
+    }
+
+    function resetAllFilters() {
+        const clientEl = document.getElementById('select_client');
+        const artEl = document.getElementById('select_article');
+        const periodEl = document.getElementById('select_period');
+        const mgrEl = document.getElementById('select_manager');
+
+        if (clientEl) clientEl.value = '';
+        if (artEl) artEl.value = '';
+        if (periodEl) periodEl.value = 'current_year';
+        {% if is_admin %}
+            if (mgrEl) mgrEl.value = '';
+        {% endif %}
+        document.getElementById('filterForm').submit();
     }
 
     // 1. Верхний динамический график

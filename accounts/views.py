@@ -22,21 +22,21 @@ def get_latest_final_file():
 
 
 def format_currency(val):
-    """Форматирует денежные показатели в юанях."""
+    """Форматирует числовые денежные показатели в юанях: 12 345 678 ¥."""
     if val is None or np.isnan(val) or val == 0:
         return "0 ¥"
     return f"{val:,.0f}".replace(",", " ") + " ¥"
 
 
 def format_percent(val):
-    """Форматирует процентные показатели."""
+    """Форматирует процентные показатели: 86.4%."""
     if val is None or np.isnan(val) or val == 0:
         return "0.0%"
     return f"{val:.1f}%"
 
 
 def get_percent_color(pct):
-    """Цветовая шкала для процентов."""
+    """Градиентная шкала цвета для процентных индикаторов."""
     if pct is None or np.isnan(pct):
         return "#64748b"
     if pct >= 130:
@@ -54,32 +54,40 @@ def get_percent_color(pct):
 
 
 def login_view(request):
+    """Страница авторизации."""
     if request.user.is_authenticated:
         return redirect('home')
+
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
-            user = authenticate(username=form.cleaned_data.get('username'), password=form.cleaned_data.get('password'))
-            if user:
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(username=username, password=password)
+            if user is not None:
                 login(request, user)
                 return redirect('home')
     else:
         form = AuthenticationForm()
+
     return render(request, 'accounts/login.html', {'form': form})
 
 
 def logout_view(request):
+    """Выход из системы."""
     logout(request)
     return redirect('login')
 
 
 @login_required
 def home_view(request):
+    """Главная страница платформы."""
     return render(request, 'accounts/home.html')
 
 
 @login_required
 def profile_view(request):
+    """Личный кабинет пользователя."""
     user = request.user
     profile = getattr(user, 'profile', None)
     full_name = getattr(profile, 'manager_name', None) or user.get_full_name() or user.username
@@ -97,6 +105,10 @@ def profile_view(request):
 
 @login_required
 def dashboard_view(request):
+    """
+    Интерактивный аналитический дашборд.
+    Считывает FINAL_SALES_FACT_TABLE.xlsx, фильтрует срезы и рассчитывает KPI.
+    """
     user = request.user
     profile = getattr(user, 'profile', None)
     is_admin = user.is_superuser or getattr(profile, 'role', '') in ['director', 'analyst']
@@ -106,7 +118,7 @@ def dashboard_view(request):
     if not latest_file or not latest_file.exists():
         return render(request, 'accounts/dashboard.html', {
             'has_data': False,
-            'message': 'Витрина данных еще не сформирована. Выполните слияние на Шаге 2.'
+            'message': 'Витрина данных еще не сформирована. Выполните обработку на Шаге 2.'
         })
 
     try:
@@ -117,7 +129,7 @@ def dashboard_view(request):
             'message': f'Ошибка при чтении витрины данных: {str(e)}'
         })
 
-    # Приведение типов числовых столбцов
+    # Приведение числовых колонок
     for num_col in ['AOP, CNY', 'Прогноз, CNY', 'Факт, CNY', 'AOP, шт', 'Прогноз, шт', 'Факт, шт']:
         if num_col in df.columns:
             df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
@@ -127,20 +139,30 @@ def dashboard_view(request):
     if 'Номер месяца' in df.columns:
         df['Номер месяца'] = pd.to_numeric(df['Номер месяца'], errors='coerce').fillna(1).astype(int)
 
-    # Ограничение видимости для обычного менеджера
+    # Ограничение датафрейма для менеджера
     if not is_admin and manager_name and 'Менеджер' in df.columns:
-        df = df[df['Менеджер'].astype(str).str.contains(manager_name, case=False, na=False)]
+        matched_rows = df['Менеджер'].astype(str).str.contains(manager_name, case=False, na=False)
+        if matched_rows.any():
+            df = df[matched_rows]
 
-    # Параметры из GET-запроса
+    # Получение параметров фильтрации из GET-запроса
     selected_manager = request.GET.get('manager', '')
     selected_article = request.GET.get('article', '')
     selected_client = request.GET.get('client', '')
     selected_period = request.GET.get('period', 'current_year')
 
+    # АВТОПОДСТАНОВКА МЕНЕДЖЕРА ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ
+    if not is_admin:
+        if 'Менеджер' in df.columns:
+            available_mgrs = [m for m in df['Менеджер'].dropna().unique() if manager_name.lower() in str(m).lower()]
+            selected_manager = available_mgrs[0] if available_mgrs else manager_name
+        else:
+            selected_manager = manager_name
+
     # -------------------------------------------------------------
-    # СОЗАВИСИМЫЕ СПИСКИ ДЛЯ СЕЛЕКТОРОВ
+    # СОЗАВИСИМОЕ ФОРМИРОВАНИЕ СПИСКОВ ДЛЯ СЕЛЕКТОРОВ
     # -------------------------------------------------------------
-    # 1. Менеджеры
+    # 1. Список менеджеров
     managers_list = sorted([str(m) for m in df['Менеджер'].dropna().unique() if str(m).strip()]) if 'Менеджер' in df.columns else []
 
     # 2. Срез по менеджеру
@@ -148,10 +170,10 @@ def dashboard_view(request):
     if selected_manager:
         mgr_df = mgr_df[mgr_df['Менеджер'] == selected_manager]
 
-    # 3. Клиенты: все клиенты менеджера (не сужаются по выбранному товару)
+    # 3. Список клиентов (все клиенты выбранного менеджера)
     clients_list = sorted([str(c) for c in mgr_df['Клиент'].dropna().unique() if str(c).strip()]) if 'Клиент' in mgr_df.columns else []
 
-    # 4. Товары: товары менеджера, но если выбран клиент — только товары этого клиента
+    # 4. Список номенклатуры (товары менеджера, но если выбран клиент — только его товары)
     art_df = mgr_df.copy()
     if selected_client:
         art_df = art_df[art_df['Клиент'] == selected_client]
@@ -169,7 +191,7 @@ def dashboard_view(request):
     if selected_article and selected_article not in articles_list:
         selected_article = ''
 
-    # 5. Периоды
+    # 5. Опции селектора периодов
     available_years = sorted(df['Год'].dropna().unique().astype(int).tolist())
     periods_options = [
         ('current_year', 'Весь 2026 год (Текущий)'),
@@ -269,7 +291,7 @@ def dashboard_view(request):
         'color_ytd_forecast': get_percent_color(pct_ytd_forecast),
     }
 
-    # 2. Верхний динамический график (по менеджерам)
+    # 2. Динамический график по менеджерам
     dyn_managers = []
     dyn_aop = []
     dyn_forecast = []
@@ -288,7 +310,7 @@ def dashboard_view(request):
             dyn_forecast.append(round(float(r['Прогноз, CNY']), 2))
             dyn_fact.append(round(float(r['Факт, CNY']), 2))
 
-    # 3. Нижний статичный график (по 12 месяцам компании)
+    # 3. Статичный график по 12 месяцам компании
     static_month_labels = [
         "01 Январь", "02 Февраль", "03 Март", "04 Апрель", "05 Май", "06 Июнь",
         "07 Июль", "08 Август", "09 Сентябрь", "10 Октябрь", "11 Ноябрь", "12 Декабрь"
@@ -312,8 +334,17 @@ def dashboard_view(request):
                 static_company_forecast[idx] = round(float(r['Прогноз, CNY']), 2)
                 static_company_fact[idx] = round(float(r['Факт, CNY']), 2)
 
+    # Проверка, активен ли хотя бы один фильтр (для кнопки сброса)
+    filters_active = bool(
+        (is_admin and selected_manager) or
+        selected_article or
+        selected_client or
+        (selected_period != 'current_year')
+    )
+
     context = {
         'has_data': True,
+        'is_admin': is_admin,
         'manager_name': manager_name,
         'managers_list': managers_list,
         'articles_list': articles_list,
@@ -323,6 +354,7 @@ def dashboard_view(request):
         'selected_article': selected_article,
         'selected_client': selected_client,
         'selected_period': selected_period,
+        'filters_active': filters_active,
         'target_year': target_year,
         'kpi': kpi,
         'dyn_managers': json.dumps(dyn_managers, ensure_ascii=False),
