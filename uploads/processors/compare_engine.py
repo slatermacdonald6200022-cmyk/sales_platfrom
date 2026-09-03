@@ -16,16 +16,23 @@ def clean_str(series: pd.Series) -> pd.Series:
 
 
 def compare_snapshots(date_a: str, date_b: str, manager_filter: str = "all", base_dir="data/processed/snapshots"):
-    cache_key = f"snap_compare_{date_a}_{date_b}_{manager_filter}"
-    cached_res = cache.get(cache_key)
-    if cached_res:
-        return cached_res
-
     path_a = Path(base_dir) / date_a / "plans_snapshot.xlsx"
     path_b = Path(base_dir) / date_b / "plans_snapshot.xlsx"
 
     if not path_a.exists() or not path_b.exists():
         return None
+
+    # Версия файла входит в ключ кэша. После сохранения Excel старый результат
+    # автоматически перестаёт использоваться, перезапуск сервера не требуется.
+    stat_a = path_a.stat()
+    stat_b = path_b.stat()
+    cache_key = (
+        f"snap_compare_{date_a}_{stat_a.st_mtime_ns}_{stat_a.st_size}_"
+        f"{date_b}_{stat_b.st_mtime_ns}_{stat_b.st_size}_{manager_filter}"
+    )
+    cached_res = cache.get(cache_key)
+    if cached_res:
+        return cached_res
 
     # Читаем только необходимые колонки (ускорение в 4 раза)
     cols_to_load = ["Менеджер", "Клиент", "Артикул", "Прогноз, шт"]
