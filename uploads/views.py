@@ -1,12 +1,16 @@
 import os
 import datetime
+import json
 from django.shortcuts import render, redirect
+from django.http import FileResponse, Http404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import PermissionDenied
 
 from .processors.compare_engine import get_available_snapshot_dates, compare_snapshots
+from .processors.export_manager_facts import get_latest_manager_report, remove_manager_reports
 
 MANAGERS_LIST = [
     {'id': 'tsarev', 'name': 'Царев Михаил', 'username': 'tsarev'},
@@ -21,6 +25,30 @@ MANAGERS_LIST = [
     {'id': 'ushakov', 'name': 'Ушаков Алексей', 'username': 'ushakov'},
 ]
 
+FACT_1C_SETTINGS_FILENAME = 'fact_1c_settings.json'
+
+
+def load_fact_1c_settings(upload_dir):
+    """Читает сохранённую валюту текущей выгрузки 1С."""
+    settings_path = os.path.join(upload_dir, FACT_1C_SETTINGS_FILENAME)
+    try:
+        with open(settings_path, 'r', encoding='utf-8') as settings_file:
+            settings_data = json.load(settings_file)
+    except (OSError, ValueError, TypeError):
+        settings_data = {}
+
+    source_currency = str(settings_data.get('source_currency', 'RUB')).upper()
+    if source_currency not in {'RUB', 'CNY'}:
+        source_currency = 'RUB'
+    return {'source_currency': source_currency}
+
+
+def save_fact_1c_settings(upload_dir, source_currency):
+    """Сохраняет валюту вместе с текущей выгрузкой 1С."""
+    settings_path = os.path.join(upload_dir, FACT_1C_SETTINGS_FILENAME)
+    with open(settings_path, 'w', encoding='utf-8') as settings_file:
+        json.dump({'source_currency': source_currency}, settings_file, ensure_ascii=False)
+
 
 def check_is_admin(user):
     """Проверка прав: администратор или аналитик"""
@@ -28,6 +56,20 @@ def check_is_admin(user):
         return True
     profile = getattr(user, 'profile', None)
     return bool(profile and profile.role in ['analyst', 'director'])
+
+
+def user_can_access_manager(user, manager):
+    """Проверяет право пользователя видеть файл конкретного менеджера."""
+    if check_is_admin(user):
+        return True
+    profile = getattr(user, 'profile', None)
+    profile_name = (getattr(profile, 'manager_name', '') or '').strip().lower()
+    manager_surname = manager['name'].split()[0].lower()
+    return (
+        manager['username'] == user.username
+        or manager['id'] in user.username.lower()
+        or (profile_name and profile_name.startswith(manager_surname))
+    )
 
 
 def get_instant_file_info(file_path):
@@ -64,6 +106,7 @@ def scan_raw_directory(upload_dir):
         return {}, None
 
     files = os.listdir(upload_dir)
+    fact_1c_settings = load_fact_1c_settings(upload_dir)
     manager_files = {}
     fact_1c_info = None
 
@@ -84,6 +127,7 @@ def scan_raw_directory(upload_dir):
                 fact_1c_info = {
                     'stored_filename': fname,
                     'display_name': orig_name,
+                    'source_currency': fact_1c_settings['source_currency'],
                     **info
                 }
             continue
@@ -132,6 +176,11 @@ def upload_view(request):
         # 1. Загрузка 1С (Админ)
         if is_admin and 'file_1c' in request.FILES:
             f_1c = request.FILES['file_1c']
+            source_currency = str(request.POST.get('source_currency', 'RUB')).upper()
+            if source_currency not in {'RUB', 'CNY'}:
+                messages.error(request, 'Выберите валюту выгрузки: рубли или юани.')
+                return redirect('upload_files')
+
             for fname in os.listdir(upload_dir):
                 if fname.startswith('fact_1c_'):
                     try:
@@ -144,7 +193,29 @@ def upload_view(request):
             with open(dest_path, 'wb+') as dest:
                 for chunk in f_1c.chunks():
                     dest.write(chunk)
-            messages.success(request, f'Выгрузка 1С «{f_1c.name}» сохранена.')
+            save_fact_1c_settings(upload_dir, source_currency)
+            currency_label = 'рубли — пересчитать по курсу ЦБ' if source_currency == 'RUB' else 'юани — без пересчёта'
+            messages.success(request, f'Выгрузка 1С «{f_1c.name}» сохранена. Валюта: {currency_label}.')
+            return redirect('upload_files')
+
+        # Изменение валюты уже загруженной выгрузки без повторной загрузки файла
+        if is_admin and request.POST.get('action') == 'set_1c_currency':
+            source_currency = str(request.POST.get('source_currency', '')).upper()
+            if source_currency not in {'RUB', 'CNY'}:
+                messages.error(request, 'Выберите валюту выгрузки: рубли или юани.')
+                return redirect('upload_files')
+
+            has_fact_1c = any(
+                fname.startswith('fact_1c_') and fname.lower().endswith(('.xlsx', '.xls'))
+                for fname in os.listdir(upload_dir)
+            )
+            if not has_fact_1c:
+                messages.error(request, 'Сначала загрузите файл выгрузки 1С.')
+                return redirect('upload_files')
+
+            save_fact_1c_settings(upload_dir, source_currency)
+            currency_label = 'рубли — пересчитать по курсу ЦБ' if source_currency == 'RUB' else 'юани — без пересчёта'
+            messages.success(request, f'Режим обработки изменён: {currency_label}.')
             return redirect('upload_files')
 
         # 2. Загрузка планов менеджеров
@@ -177,13 +248,7 @@ def upload_view(request):
     if is_admin:
         target_managers = MANAGERS_LIST
     else:
-        target_managers = [
-            m for m in MANAGERS_LIST
-            if m['username'] == user.username or m['id'] in user.username.lower() or (
-                    hasattr(user, 'profile') and user.profile.manager_name and m['name'].startswith(
-                user.profile.manager_name.split()[0])
-            )
-        ]
+        target_managers = [m for m in MANAGERS_LIST if user_can_access_manager(user, m)]
         if not target_managers:
             mgr_title = getattr(getattr(user, 'profile', None), 'manager_name',
                                 None) or user.get_full_name() or user.username
@@ -211,6 +276,36 @@ def upload_view(request):
 
 
 @login_required
+def download_manager_report_view(request, manager_id):
+    """Скачивание персонального файла; менеджер не может получить чужой файл."""
+    manager = next((item for item in MANAGERS_LIST if item['id'] == manager_id), None)
+    if manager is None:
+        raise Http404('Менеджер не найден.')
+    if not user_can_access_manager(request.user, manager):
+        raise PermissionDenied('Нет доступа к файлу другого менеджера.')
+
+    reports_base_dir = os.path.join(settings.BASE_DIR, 'data', 'processed', 'manager_reports')
+    report_path = get_latest_manager_report(reports_base_dir, manager_id)
+    if report_path is None or not report_path.exists():
+        raise Http404('Файл с фактическими значениями ещё не сформирован.')
+
+    manager_files, _ = scan_raw_directory(os.path.join(settings.BASE_DIR, 'data', 'raw'))
+    source_info = manager_files.get(manager_id)
+    if not source_info:
+        raise Http404('Исходный файл менеджера удалён.')
+    source_path = os.path.join(settings.BASE_DIR, 'data', 'raw', source_info['stored_filename'])
+    if not os.path.exists(source_path) or report_path.stat().st_mtime < os.path.getmtime(source_path):
+        raise Http404('После загрузки нового исходного файла необходимо снова запустить ETL.')
+
+    return FileResponse(
+        open(report_path, 'rb'),
+        as_attachment=True,
+        filename=report_path.name,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
+
+@login_required
 def delete_file_view(request, file_type, target_id):
     """Удаление файла менеджера или файла 1С"""
     user = request.user
@@ -231,12 +326,15 @@ def delete_file_view(request, file_type, target_id):
 
     elif file_type == 'manager':
         if not is_admin:
-            can_delete = (target_id == user.username or target_id in user.username.lower())
+            target_manager = next((item for item in MANAGERS_LIST if item['id'] == target_id), None)
+            can_delete = bool(target_manager and user_can_access_manager(user, target_manager))
             if not can_delete:
                 messages.error(request, 'Вы можете удалить только свой файл.')
                 return redirect('upload_files')
 
         remove_old_manager_files(upload_dir, target_id)
+        reports_base_dir = os.path.join(settings.BASE_DIR, 'data', 'processed', 'manager_reports')
+        remove_manager_reports(reports_base_dir, target_id)
         messages.success(request, 'Файл плана удален.')
 
     return redirect('upload_files')

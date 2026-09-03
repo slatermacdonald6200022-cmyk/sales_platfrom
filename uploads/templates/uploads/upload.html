@@ -146,6 +146,13 @@
                     <div class="text-muted mt-1" style="font-size: 0.78rem;">
                         Размер: {{ fact_1c.size }} &bull; Строк: {{ fact_1c.rows }} &bull; Столбцов: {{ fact_1c.cols }} &bull; Изменен: {{ fact_1c.modified }}
                     </div>
+                    <div class="mt-2">
+                        {% if fact_1c.source_currency == 'RUB' %}
+                            <span class="badge bg-warning text-dark">Рубли → пересчитать в CNY по курсу ЦБ</span>
+                        {% else %}
+                            <span class="badge bg-info text-dark">Уже в CNY → не пересчитывать</span>
+                        {% endif %}
+                    </div>
                 {% else %}
                     <div class="small text-muted mt-1">Файл фактической реализации за текущий период еще не загружен.</div>
                 {% endif %}
@@ -154,6 +161,11 @@
             <div class="col-lg-6">
                 <form method="post" enctype="multipart/form-data" class="m-0">
                     {% csrf_token %}
+                    <label for="sourceCurrency" class="form-label small fw-semibold mb-1">В какой валюте сумма в файле?</label>
+                    <select id="sourceCurrency" name="source_currency" class="form-select form-select-sm mb-2">
+                        <option value="RUB" {% if not fact_1c or fact_1c.source_currency == 'RUB' %}selected{% endif %}>Рубли — перевести в CNY по курсу ЦБ</option>
+                        <option value="CNY" {% if fact_1c.source_currency == 'CNY' %}selected{% endif %}>Юани — оставить сумму без изменений</option>
+                    </select>
                     {% if fact_1c %}
                         <input type="file" 
                                name="file_1c" 
@@ -161,6 +173,9 @@
                                accept=".xlsx, .xls" 
                                disabled 
                                title="Сначала удалите текущий файл, чтобы загрузить новый">
+                        <button type="submit" name="action" value="set_1c_currency" class="btn btn-outline-primary btn-sm w-100 mt-2">
+                            Сохранить режим обработки
+                        </button>
                     {% else %}
                         <input type="file" 
                                name="file_1c" 

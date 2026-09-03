@@ -1,5 +1,9 @@
+import datetime
 import os
 import re
+import urllib.request
+import xml.etree.ElementTree as ET
+
 import pandas as pd
 from openpyxl import load_workbook
 
@@ -29,10 +33,59 @@ def parse_number(val):
         return 0.0
 
 
-def normalize_1c_file(file_path):
+def get_current_cny_rate(rate_date=None):
+    """Возвращает официальный курс ЦБ: сколько RUB стоит 1 CNY."""
+    rate_date = rate_date or datetime.date.today()
+    date_req = rate_date.strftime('%d/%m/%Y')
+    url = f'https://www.cbr.ru/scripts/XML_daily.asp?date_req={date_req}'
+    request = urllib.request.Request(
+        url,
+        headers={'User-Agent': 'sales-platform/1.0'}
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            root = ET.fromstring(response.read())
+
+        for valute in root.findall('Valute'):
+            if valute.findtext('CharCode') == 'CNY':
+                nominal = int(valute.findtext('Nominal'))
+                value = float(valute.findtext('Value').replace(',', '.'))
+                rate = value / nominal
+                if rate <= 0:
+                    break
+                return rate
+    except Exception as exc:
+        raise RuntimeError(
+            f'Не удалось получить курс CNY ЦБ РФ на {date_req}. '
+            'Загрузка остановлена, чтобы не записать рубли как юани.'
+        ) from exc
+
+    raise RuntimeError(
+        f'В ответе ЦБ РФ нет корректного курса CNY на {date_req}. '
+        'Загрузка остановлена, чтобы не записать рубли как юани.'
+    )
+
+
+def normalize_1c_file(file_path, source_currency='RUB', cny_rate=None):
     """Парсит отчет валовой прибыли 1C ERP и возвращает плоскую таблицу."""
     if not file_path or not os.path.exists(file_path):
         return pd.DataFrame()
+
+    source_currency = str(source_currency).strip().upper()
+    if source_currency not in {'RUB', 'CNY'}:
+        raise ValueError('Валюта выгрузки 1С должна быть RUB или CNY.')
+
+    # Для рублёвой выгрузки курс запрашивается один раз и применяется ко всему файлу.
+    # Если выгрузка уже в CNY, сумма переносится без пересчёта и запрос к ЦБ не нужен.
+    if source_currency == 'RUB':
+        if cny_rate is None:
+            cny_rate = get_current_cny_rate()
+        cny_rate = float(cny_rate)
+        if cny_rate <= 0:
+            raise ValueError('Курс CNY должен быть больше нуля.')
+    else:
+        cny_rate = 1.0
 
     df_raw = pd.read_excel(file_path, header=None)
 
@@ -135,8 +188,8 @@ def normalize_1c_file(file_path):
                 continue
 
         qty_val = parse_number(row.iloc[col_qty])
-        cny_val = parse_number(row.iloc[col_cny])
-        if qty_val == 0 and cny_val == 0:
+        source_amount = parse_number(row.iloc[col_cny])
+        if qty_val == 0 and source_amount == 0:
             continue
 
         records.append({
@@ -147,7 +200,7 @@ def normalize_1c_file(file_path):
             'Номер месяца': period_month,
             'Месяц': f"{period_year}-{period_month:02d}",
             'Факт, шт': qty_val,
-            'Факт, CNY': cny_val
+            'Факт, CNY': source_amount / cny_rate
         })
 
     workbook.close()

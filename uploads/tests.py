@@ -33,7 +33,7 @@ class Normalize1CFileTests(SimpleTestCase):
             path = tmp.name
         try:
             workbook.save(path)
-            result = normalize_1c_file(path)
+            result = normalize_1c_file(path, source_currency='RUB', cny_rate=10)
         finally:
             workbook.close()
             os.unlink(path)
@@ -46,6 +46,6 @@ class Normalize1CFileTests(SimpleTestCase):
         self.assertEqual(row["Год"], 2026)
         self.assertEqual(row["Номер месяца"], 5)
         self.assertEqual(row["Факт, шт"], 6)
-        self.assertEqual(row["Факт, CNY"], 600)
+        self.assertEqual(row["Факт, CNY"], 60)
 
 # Create your tests here.

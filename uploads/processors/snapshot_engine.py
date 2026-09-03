@@ -1,11 +1,13 @@
 import os
 import datetime
+import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
 
 from .normalize_manager import normalize_all_managers
 from .normalize_1c import normalize_1c_file
+from .export_manager_facts import export_all_manager_fact_files
 
 USHAKOV_CLIENTS_KEYWORDS = [
     "норма", "тдспа", "мегаавтозапчасть", "набиева", "бав-движение",
@@ -279,13 +281,26 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
             existing_facts = extract_existing_facts(latest_file)
 
     # 3. Поиск и парсинг выгрузок 1С
+    settings_path = Path(raw_dir) / 'fact_1c_settings.json'
+    source_currency = 'RUB'
+    try:
+        with open(settings_path, 'r', encoding='utf-8') as settings_file:
+            source_currency = str(json.load(settings_file).get('source_currency', 'RUB')).upper()
+    except (OSError, ValueError, TypeError):
+        pass
+    if source_currency not in {'RUB', 'CNY'}:
+        source_currency = 'RUB'
+
+    currency_label = 'RUB → CNY по курсу ЦБ на дату обработки' if source_currency == 'RUB' else 'CNY без пересчёта'
+    print(f"💱 Режим суммы выгрузки 1С: {currency_label}")
+
     actuals_dfs = []
     for f in os.listdir(raw_dir):
         if (f.startswith("fact_1c_") or "1c" in f.lower() or "факт" in f.lower()) and (
                 f.endswith(".xlsx") or f.endswith(".xls")):
             file_1c_path = os.path.join(raw_dir, f)
             print(f"📖 Чтение отчета 1С: {f}")
-            df_1c = normalize_1c_file(file_1c_path)
+            df_1c = normalize_1c_file(file_1c_path, source_currency=source_currency)
             if not df_1c.empty:
                 actuals_dfs.append(df_1c)
 
@@ -298,6 +313,9 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     final_dir.mkdir(parents=True, exist_ok=True)
     final_path = final_dir / "FINAL_SALES_FACT_TABLE.xlsx"
     final_df.to_excel(final_path, index=False)
+
+    # Персональные копии исходных планов с заполненными количественными фактами.
+    export_all_manager_fact_files(raw_dir=raw_dir, final_df=final_df, date_str=date_str)
 
     print(f"✅ Итоговая витрина создана: {final_path} ({len(final_df):,} строк)")
     return final_df

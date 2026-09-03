@@ -9,11 +9,27 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 
 from uploads.processors.snapshot_engine import create_full_snapshot
-from uploads.views import MANAGERS_LIST, scan_raw_directory, check_is_admin
+from uploads.processors.export_manager_facts import get_latest_manager_report
+from uploads.views import MANAGERS_LIST, scan_raw_directory, check_is_admin, user_can_access_manager
 
 DATA_DIR = Path(settings.BASE_DIR) / "data"
 RAW_DIR = DATA_DIR / "raw"
 FINAL_DIR = DATA_DIR / "processed" / "final"
+MANAGER_REPORTS_DIR = DATA_DIR / "processed" / "manager_reports"
+
+
+def get_user_manager_reports(user):
+    """Возвращает только доступные пользователю результаты обработки."""
+    manager_files, _ = scan_raw_directory(str(RAW_DIR))
+    reports = []
+    for manager in MANAGERS_LIST:
+        if manager['id'] not in manager_files or not user_can_access_manager(user, manager):
+            continue
+        report_path = get_latest_manager_report(MANAGER_REPORTS_DIR, manager['id'])
+        source_path = RAW_DIR / manager_files[manager['id']]['stored_filename']
+        if report_path and source_path.exists() and report_path.stat().st_mtime >= source_path.stat().st_mtime:
+            reports.append({'id': manager['id'], 'name': manager['name']})
+    return reports
 
 
 def get_latest_final_file():
@@ -77,6 +93,7 @@ def processing_page_view(request):
         'missing_managers': missing_managers,
         'has_1c': has_1c,
         'all_files_ready': all_files_ready,
+        'manager_reports': get_user_manager_reports(user),
     }
     return render(request, 'analytics/processing.html', context)
 
@@ -135,7 +152,8 @@ def run_etl_api(request):
             'message': 'ETL трансформация успешно завершена! Сформирована целевая витрина.',
             'columns': columns,
             'preview_rows': preview_rows,
-            'total_rows': len(final_df)
+            'total_rows': len(final_df),
+            'manager_reports': get_user_manager_reports(request.user),
         })
 
     except Exception as e:

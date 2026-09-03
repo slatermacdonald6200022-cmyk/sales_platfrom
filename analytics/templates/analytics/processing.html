@@ -79,6 +79,23 @@
         <div id="statusAlert" class="alert py-2 mt-3 small border-0" style="display: none;"></div>
     </div>
 
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white" id="managerReports" {% if not manager_reports %}style="display: none;"{% endif %}>
+        <div class="mb-3">
+            <h5 class="fw-bold mb-1" style="color: #0B2545;">Файлы менеджеров с фактическими значениями</h5>
+            <p class="text-muted small mb-0">Файлы сформированы после объединения планов с фактом 1С.</p>
+        </div>
+        <div class="row g-2" id="managerReportLinks">
+            {% for report in manager_reports %}
+                <div class="col-md-6 col-lg-4">
+                    <a href="{% url 'download_manager_report' manager_id=report.id %}"
+                       class="btn btn-outline-success w-100 text-start">
+                        ↓ {{ report.name }}
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
     <!-- Блок предпросмотра витрины -->
     <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -243,6 +260,23 @@
                     bodyHtml += '</tr>';
                 });
                 tableBody.innerHTML = bodyHtml;
+
+                // Файлы появляются только после успешного завершения ETL.
+                const reportsContainer = document.getElementById('managerReports');
+                const reportLinks = document.getElementById('managerReportLinks');
+                const reportUrlTemplate = "{% url 'download_manager_report' manager_id='__manager_id__' %}";
+                reportLinks.innerHTML = '';
+                (body.manager_reports || []).forEach(report => {
+                    const column = document.createElement('div');
+                    column.className = 'col-md-6 col-lg-4';
+                    const link = document.createElement('a');
+                    link.className = 'btn btn-outline-success w-100 text-start';
+                    link.href = reportUrlTemplate.replace('__manager_id__', encodeURIComponent(report.id));
+                    link.textContent = `↓ ${report.name}`;
+                    column.appendChild(link);
+                    reportLinks.appendChild(column);
+                });
+                reportsContainer.style.display = body.manager_reports && body.manager_reports.length ? '' : 'none';
 
             } else {
                 progressBar.style.width = '100%';
