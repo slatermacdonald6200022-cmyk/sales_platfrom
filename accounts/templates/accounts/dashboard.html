@@ -1,12 +1,20 @@
 {% extends "accounts/base.html" %}
 
-{% block title %}Аналитическая панель показателей продаж{% endblock %}
+{% block title %}Отчёты | Планирование продаж{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3" style="background-color: #F8FAFC; min-height: 100vh;">
+<div class="container-fluid page-shell">
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Отчёты</h1>
+            <p class="page-description">План, прогноз и фактические продажи.</p>
+        </div>
+        <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Главная</a>
+    </div>
 
     <!-- Панель селекторов фильтрации -->
-    <div class="card p-3 mb-4 bg-white border-0 shadow-sm rounded-3">
+    <div class="card panel-card p-3 mb-4">
         <form id="filterForm" method="get" action="{% url 'dashboard' %}">
             <div class="row g-2 align-items-end">
 
@@ -69,7 +77,7 @@
                 <div class="col-md-2">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label class="form-label small fw-bold text-muted mb-0">Период</label>
-                        {% if selected_period != 'current_year' %}
+                        {% if selected_period != 'reporting_period' %}
                             <a href="javascript:void(0)" onclick="clearPeriodFilter()" class="text-danger small text-decoration-none" title="Сбросить период" style="font-size: 0.75rem;">✕ Сброс</a>
                         {% endif %}
                     </div>
@@ -97,13 +105,13 @@
         </form>
     </div>
 
-    <!-- ВЕРХНИЙ БЛОК: Динамический график (слева) + 9 Карточек KPI (справа) -->
+    <!-- Показатели по менеджерам и итоговые значения -->
     <div class="row g-4 mb-4">
 
-        <!-- Слева: Динамический график по менеджерам -->
+        <!-- График по менеджерам -->
         <div class="col-lg-4">
-            <div class="card p-3 bg-white border-0 shadow-sm rounded-3 h-100 d-flex flex-column">
-                <div class="small fw-bold text-muted mb-2">Исполнение планов по менеджерам (Динамический)</div>
+            <div class="card panel-card p-3 h-100 d-flex flex-column">
+                <div class="small fw-bold text-muted mb-2">Показатели по менеджерам</div>
                 <div class="flex-grow-1" style="min-height: 420px; position: relative;">
                     <canvas id="dynamicManagersChart"></canvas>
                 </div>
@@ -116,23 +124,23 @@
 
                 <!-- 1. Месячные показатели -->
                 <div>
-                    <h6 class="fw-bold mb-2 text-dark">Месячные показатели</h6>
+                    <h6 class="fw-bold mb-2 text-dark">Выбранный месяц</h6>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">AOP за выбранный месяц, CNY</div>
+                                <div class="text-muted small mb-1">Годовой план (AOP), юани</div>
                                 <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_aop }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Прогноз за выбранный месяц, CNY</div>
+                                <div class="text-muted small mb-1">Прогноз, юани</div>
                                 <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_forecast }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Факт за выбранный месяц, CNY</div>
+                                <div class="text-muted small mb-1">Факт, юани</div>
                                 <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_fact }}</div>
                             </div>
                         </div>
@@ -141,23 +149,23 @@
 
                 <!-- 2. Годовые показатели -->
                 <div>
-                    <h6 class="fw-bold mb-2 text-dark">Годовые показатели</h6>
+                    <h6 class="fw-bold mb-2 text-dark">С начала года</h6>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">AOP с начала года, CNY</div>
+                                <div class="text-muted small mb-1">Годовой план (AOP), юани</div>
                                 <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.ytd_aop }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Прогноз до конца года, CNY</div>
+                                <div class="text-muted small mb-1">Прогноз на год, юани</div>
                                 <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.full_year_forecast }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Факт с начала года, CNY</div>
+                                <div class="text-muted small mb-1">Факт, юани</div>
                                 <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.ytd_fact }}</div>
                             </div>
                         </div>
@@ -166,23 +174,23 @@
 
                 <!-- 3. Процентные показатели -->
                 <div>
-                    <h6 class="fw-bold mb-2 text-dark">Процентные показатели</h6>
+                    <h6 class="fw-bold mb-2 text-dark">Выполнение</h6>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_month_aop }} !important;">
-                                <div class="text-muted small mb-1">Факт / AOP за выбранный месяц, %</div>
+                                <div class="text-muted small mb-1">План за месяц</div>
                                 <div class="fs-4 fw-bold" style="color: {{ kpi.color_month_aop }};">{{ kpi.pct_month_aop }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_ytd_aop }} !important;">
-                                <div class="text-muted small mb-1">Факт / AOP с начала года, %</div>
+                                <div class="text-muted small mb-1">План с начала года</div>
                                 <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_aop }};">{{ kpi.pct_ytd_aop }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_ytd_forecast }} !important;">
-                                <div class="text-muted small mb-1">Факт / Прогноз с начала года, %</div>
+                                <div class="text-muted small mb-1">Прогноз с начала года</div>
                                 <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_forecast }};">{{ kpi.pct_ytd_forecast }}</div>
                             </div>
                         </div>
@@ -194,12 +202,12 @@
 
     </div>
 
-    <!-- НИЖНИЙ БЛОК: Статичный график по 12 месяцам компании -->
+    <!-- График по месяцам -->
     <div class="row g-4">
         <div class="col-12">
-            <div class="card p-4 bg-white border-0 shadow-sm rounded-3">
+            <div class="card panel-card p-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="small fw-bold text-muted">Динамика компании по месяцам за {{ target_year }} год (Статичный график)</div>
+                    <div class="small fw-bold text-muted">Показатели по месяцам за {{ target_year }} год</div>
                 </div>
                 <div style="height: 300px; position: relative;">
                     <canvas id="staticMonthsChart"></canvas>
@@ -233,7 +241,7 @@
     function clearPeriodFilter() {
         const el = document.getElementById('select_period');
         if (el) {
-            el.value = 'current_year';
+            el.value = 'reporting_period';
             document.getElementById('filterForm').submit();
         }
     }
@@ -246,14 +254,14 @@
 
         if (clientEl) clientEl.value = '';
         if (artEl) artEl.value = '';
-        if (periodEl) periodEl.value = 'current_year';
+        if (periodEl) periodEl.value = 'reporting_period';
         {% if is_admin %}
             if (mgrEl) mgrEl.value = '';
         {% endif %}
         document.getElementById('filterForm').submit();
     }
 
-    // 1. Верхний динамический график
+    // 1. График по менеджерам
     const ctxDyn = document.getElementById('dynamicManagersChart').getContext('2d');
     new Chart(ctxDyn, {
         type: 'bar',
@@ -308,7 +316,7 @@
         }
     });
 
-    // 2. Нижний статичный график
+    // 2. График по месяцам
     const ctxStatic = document.getElementById('staticMonthsChart').getContext('2d');
     new Chart(ctxStatic, {
         type: 'bar',

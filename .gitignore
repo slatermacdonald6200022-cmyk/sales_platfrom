@@ -11,6 +11,9 @@ __pycache__/
 # База данных и локальные файлы
 *.sqlite3
 db.sqlite3
+accounts_credentials.xlsx
+data/raw/
+data/processed/
 
 # Настройки IDE
 .idea/

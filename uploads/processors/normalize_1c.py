@@ -89,17 +89,24 @@ def normalize_1c_file(file_path, source_currency='RUB', cny_rate=None):
 
     df_raw = pd.read_excel(file_path, header=None)
 
-    # 1. Поиск периода в шапке
-    period_year = 2026
-    period_month = 5
+    # 1. Поиск периода в шапке. Не используем месяц по умолчанию:
+    # неверно распознанная выгрузка не должна молча изменять факты другого месяца.
+    detected_periods = set()
     for i in range(min(15, len(df_raw))):
         line = " ".join([str(x) for x in df_raw.iloc[i].dropna()])
-        date_match = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', line)
-        if date_match:
-            _, m, y = date_match.groups()
-            period_month = int(m)
-            period_year = int(y)
-            break
+        for _, month, year in re.findall(r'(\d{2})\.(\d{2})\.(\d{4})', line):
+            month_number = int(month)
+            if 1 <= month_number <= 12:
+                detected_periods.add((int(year), month_number))
+
+    if not detected_periods:
+        raise ValueError(
+            'Не удалось определить отчётный период выгрузки. '
+            'В шапке файла должен быть указан диапазон дат.'
+        )
+    if len(detected_periods) != 1:
+        raise ValueError('В шапке выгрузки указаны даты из разных месяцев.')
+    period_year, period_month = detected_periods.pop()
 
     # 2. Поиск строки заголовков таблицы
     header_idx = None
@@ -150,6 +157,7 @@ def normalize_1c_file(file_path, source_currency='RUB', cny_rate=None):
 
     rows_data = df_raw.iloc[header_idx + 1:].copy()
     records = []
+    source_amount_total = 0.0
     current_article = None
     current_product = None
 
@@ -202,10 +210,18 @@ def normalize_1c_file(file_path, source_currency='RUB', cny_rate=None):
             'Факт, шт': qty_val,
             'Факт, CNY': source_amount / cny_rate
         })
+        source_amount_total += source_amount
 
     workbook.close()
 
-    return pd.DataFrame(records)
+    result = pd.DataFrame(records)
+    result.attrs['report_year'] = period_year
+    result.attrs['report_month'] = period_month
+    result.attrs['report_period'] = f'{period_year:04d}-{period_month:02d}'
+    result.attrs['source_currency'] = source_currency
+    result.attrs['exchange_rate'] = cny_rate
+    result.attrs['source_amount'] = source_amount_total
+    return result
 
 
 # Алиас для совместимости

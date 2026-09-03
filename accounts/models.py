@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class Profile(models.Model):
@@ -16,3 +18,10 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"{self.manager_name or self.user.username} ({self.get_role_display()})"
+
+
+@receiver(post_save, sender=User)
+def ensure_user_profile(sender, instance, created, **kwargs):
+    """Каждая новая учётная запись получает профиль с безопасной ролью менеджера."""
+    if created:
+        Profile.objects.get_or_create(user=instance)

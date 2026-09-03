@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аналитическая платформа</title>
+    <title>Планирование продаж</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
@@ -122,7 +122,7 @@
         <div class="container px-4 d-flex justify-content-between align-items-center">
 
             <a class="navbar-brand d-flex align-items-center text-white m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="fw-bold tracking-tight">АНАЛИТИЧЕСКАЯ ПЛАТФОРМА</span>
+                <span class="fw-bold tracking-tight">ПЛАНИРОВАНИЕ ПРОДАЖ</span>
             </a>
 
             <div class="d-flex align-items-center gap-3">
@@ -161,7 +161,7 @@
                         Пользователь: {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
                     </h5>
                     <p class="text-muted mb-0 small">
-                        Автоматизированная система сбора, нормализации и консолидации планов продаж.
+                        Загрузка планов, обновление фактических данных и контроль результатов.
                     </p>
                 </div>
                 <div>
@@ -184,14 +184,14 @@
             <div class="col-md-4">
                 <div class="card step-card p-4">
                     <div class="mb-2">
-                        <span class="step-num">Модуль 01</span>
+                        <span class="step-num">01</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">Реестр импорта файлов</h5>
+                    <h5 class="card-title fw-bold text-dark">Загрузка файлов</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Централизованный ввод индивидуальных планов продаж менеджеров и выгрузок фактической отгрузки из учетной системы 1С:ERP.
+                        Файлы планов менеджеров и фактические данные за отчётный месяц.
                     </p>
                     <a href="{% url 'upload_files' %}" class="btn btn-brand-primary btn-sm mt-3 w-100 py-2">
-                        Перейти к импорту &rarr;
+                        Открыть
                     </a>
                 </div>
             </div>
@@ -199,14 +199,14 @@
             <div class="col-md-4">
                 <div class="card step-card p-4">
                     <div class="mb-2">
-                        <span class="step-num">Модуль 02</span>
+                        <span class="step-num">02</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">Обработка и нормализация (ETL)</h5>
+                    <h5 class="card-title fw-bold text-dark">Обработка данных</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Автоматическое развертывание широких таблиц (UNPIVOT), валидация номенклатурных позиций и слияние плановых срезов с фактом.
+                        Проверка файлов и объединение планов с фактическими значениями.
                     </p>
                     <a href="{% url 'readiness' %}" class="btn btn-outline-dark btn-sm mt-3 w-100 py-2 fw-semibold">
-                        Контроль и обработка &rarr;
+                        Открыть
                     </a>
                 </div>
             </div>
@@ -214,14 +214,14 @@
             <div class="col-md-4">
                 <div class="card step-card p-4">
                     <div class="mb-2">
-                        <span class="step-num">Модуль 03</span>
+                        <span class="step-num">03</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">Аналитическая панель (BI)</h5>
+                    <h5 class="card-title fw-bold text-dark">Отчёты</h5>
                     <p class="card-text text-muted small flex-grow-1">
-                        Мониторинг ключевых показателей: выполнение планов AOP и Forecast, динамика выручки в валютах CNY/RUB и структура продаж.
+                        План, прогноз, фактические продажи и выполнение показателей.
                     </p>
                     <a href="{% url 'dashboard' %}" class="btn btn-brand-accent btn-sm mt-3 w-100 py-2">
-                        Открыть панель отчетов
+                        Открыть
                     </a>
                 </div>
             </div>

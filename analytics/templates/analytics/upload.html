@@ -1,28 +1,28 @@
 {% extends "accounts/base.html" %}
 
-{% block title %}Модуль 01. Реестр импорта файлов | Sales Analytics{% endblock %}
+{% block title %}Загрузка файлов | Планирование продаж{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3">
+<div class="page-shell">
 
     <!-- Верхний заголовок -->
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+    <div class="page-header">
         <div>
-            <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Модуль 01. Реестр импорта файлов</h4>
-            <p class="text-muted small mb-0">
+            <h1 class="page-title">Загрузка файлов</h1>
+            <p class="page-description">
                 {% if is_admin %}
-                    Консоль администратора: мониторинг, загрузка и удаление файлов всех 10 менеджеров и 1С:ERP.
+                    Файлы планов менеджеров и фактические данные за отчётный месяц.
                 {% else %}
-                    Индивидуальный слот менеджера: выберите файл плана для загрузки на сервер.
+                    Загрузите файл плана продаж.
                 {% endif %}
             </p>
         </div>
         <div class="d-flex gap-2">
             <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-                &larr; Главное меню
+                Главная
             </a>
             <a href="{% url 'processing_page' %}" class="btn text-white btn-sm rounded-pill px-3" style="background-color: var(--brand-navy);">
-                К обработке (ETL) &rarr;
+                К обработке
             </a>
         </div>
     </div>
@@ -36,13 +36,13 @@
         {% endfor %}
     {% endif %}
 
-    <!-- Блок 1C:ERP -->
+    <!-- Фактические данные -->
     {% if is_admin %}
-    <div class="card border-0 shadow-sm rounded-3 p-4 mb-4 bg-white">
+    <div class="card panel-card p-4 mb-4">
         <div class="row align-items-center">
             <div class="col-lg-6 mb-3 mb-lg-0">
                 <div class="d-flex align-items-center gap-2 mb-1">
-                    <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">Выгрузка фактических отгрузок (1C:ERP)</h6>
+                    <h6 class="fw-bold mb-0" style="color: var(--brand-navy);">Фактические данные</h6>
                     {% if fact_1c %}
                         <span class="badge bg-success">Загружен</span>
                     {% else %}
@@ -53,12 +53,15 @@
                 {% if fact_1c %}
                     <div class="d-flex align-items-center gap-2 mt-2">
                         <span class="small text-dark fw-semibold">{{ fact_1c.display_name }}</span>
-                        <a href="{% url 'delete_file' file_type='fact_1c' target_id=fact_1c.stored_filename %}"
-                           class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap"
-                           style="font-size: 0.75rem;"
-                           onclick="return confirm('Удалить файл 1С:ERP?');">
-                            Удалить
-                        </a>
+                        <form method="post"
+                              action="{% url 'delete_file' file_type='fact_1c' target_id=fact_1c.stored_filename %}"
+                              class="m-0"
+                              onsubmit="return confirm('Удалить файл фактических данных?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap" style="font-size: 0.75rem;">
+                                Удалить
+                            </button>
+                        </form>
                     </div>
                     <div class="text-muted mt-1" style="font-size: 0.78rem;">
                         Размер: {{ fact_1c.size }} &bull; Строк: {{ fact_1c.rows }} &bull; Столбцов: {{ fact_1c.cols }} &bull; Изменен: {{ fact_1c.modified }}
@@ -110,12 +113,15 @@
                             <span class="small text-success fw-semibold text-truncate me-2" title="{{ slot.info.display_name }}">
                                 {{ slot.info.display_name }}
                             </span>
-                            <a href="{% url 'delete_file' file_type='manager' target_id=slot.id %}"
-                               class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap"
-                               style="font-size: 0.75rem;"
-                               onclick="return confirm('Удалить файл менеджера {{ slot.name }}?');">
-                                Удалить
-                            </a>
+                            <form method="post"
+                                  action="{% url 'delete_file' file_type='manager' target_id=slot.id %}"
+                                  class="m-0"
+                                  onsubmit="return confirm('Удалить файл менеджера {{ slot.name }}?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2 text-nowrap" style="font-size: 0.75rem;">
+                                    Удалить
+                                </button>
+                            </form>
                         </div>
                         <div class="text-muted" style="font-size: 0.78rem;">
                             {{ slot.info.size }} &bull; {{ slot.info.rows }} строк &bull; {{ slot.info.cols }} колонок

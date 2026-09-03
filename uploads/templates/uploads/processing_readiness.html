@@ -1,15 +1,15 @@
 {% extends "accounts/base.html" %}
 
-{% block title %}Контроль готовности и запуск ETL | Sales Analytics{% endblock %}
+{% block title %}Обработка данных | Планирование продаж{% endblock %}
 
 {% block content %}
-<div class="container px-4 py-4" style="max-width: 980px;">
+<div class="container page-shell" style="max-width: 980px;">
 
     <!-- Заголовок -->
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+    <div class="page-header">
         <div>
-            <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Контроль готовности и запуск ETL</h4>
-            <p class="text-muted small mb-0">Проверка наличия всех 10 файлов менеджеров и файла 1С перед нормализацией.</p>
+            <h4 class="fw-bold mb-1" style="color: var(--brand-navy);">Обработка данных</h4>
+            <p class="text-muted small mb-0">Проверка загруженных файлов и подготовка результатов.</p>
         </div>
         <div>
             <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">&larr; Главное меню</a>
@@ -20,14 +20,14 @@
         
         <!-- Карточка запуска -->
         <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
-                <h6 class="fw-bold mb-2" style="color: var(--brand-navy);">Статус нормализации и слияния</h6>
+            <div class="card panel-card p-4 h-100 d-flex flex-column">
+                <h6 class="fw-bold mb-2" style="color: var(--brand-navy);">Объединение данных</h6>
                 <p class="text-muted small flex-grow-1">
-                    Запуск процедур очистки, разворота UNPIVOT и объединения плановых показателей с фактической витриной 1С:ERP.
+                    Проверка файлов и объединение планов с фактическими значениями.
                 </p>
                 <div class="mt-4">
-                    <a href="{% url 'processing_page' %}" class="btn text-white w-100 py-2 fw-bold rounded-3" style="background-color: var(--brand-navy);">
-                        Выполнить преобразование данных (ETL) &rarr;
+                    <a href="{% url 'processing_page' %}" class="btn btn-brand w-100 py-2 fw-bold rounded-3">
+                        Перейти к обработке
                     </a>
                 </div>
             </div>
@@ -35,19 +35,19 @@
 
         <!-- Карточка навигации -->
         <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
-                <h6 class="fw-bold mb-2" style="color: var(--brand-navy);">Навигация по модулям</h6>
-                <p class="text-muted small mb-3">После формирования среза перейдите к сопоставлению прогнозов или к аналитическому дашборду.</p>
+            <div class="card panel-card p-4 h-100 d-flex flex-column">
+                <h6 class="fw-bold mb-2" style="color: var(--brand-navy);">Другие разделы</h6>
+                <p class="text-muted small mb-3">Сравните версии прогнозов или откройте отчёты.</p>
                 
                 <div class="d-flex flex-column gap-2 mt-auto">
                     <a href="{% url 'compare' %}" class="btn btn-outline-primary btn-sm text-start py-2 rounded-2">
-                        &bull; Перейти к сравнению срезов планов &rarr;
+                        Сравнение прогнозов
                     </a>
                     <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm text-start py-2 rounded-2">
-                        &bull; Открыть Аналитический дашборд &rarr;
+                        Открыть отчёты
                     </a>
                     <a href="{% url 'upload_files' %}" class="btn btn-outline-secondary btn-sm text-start py-2 rounded-2">
-                        &bull; Вернуться в реестр импорта файлов &rarr;
+                        Вернуться к загрузке файлов
                     </a>
                 </div>
             </div>

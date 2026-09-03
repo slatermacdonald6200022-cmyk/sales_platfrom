@@ -1,6 +1,8 @@
 import os
 import datetime
 import json
+import uuid
+from pathlib import Path
 from django.shortcuts import render, redirect
 from django.http import FileResponse, Http404
 from django.contrib.auth.decorators import login_required
@@ -8,9 +10,14 @@ from django.contrib import messages
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
+from django.utils.text import get_valid_filename
+from django.views.decorators.http import require_POST
+
+from accounts.permissions import can_compare_snapshots, can_manage_files, is_manager
 
 from .processors.compare_engine import get_available_snapshot_dates, compare_snapshots
 from .processors.export_manager_facts import get_latest_manager_report, remove_manager_reports
+from .validators import ExcelValidationError, validate_actual_file, validate_manager_file
 
 MANAGERS_LIST = [
     {'id': 'tsarev', 'name': 'Царев Михаил', 'username': 'tsarev'},
@@ -26,6 +33,19 @@ MANAGERS_LIST = [
 ]
 
 FACT_1C_SETTINGS_FILENAME = 'fact_1c_settings.json'
+
+MANAGER_IDENTITY_TOKENS = {
+    'tsarev': {'царев'},
+    'khusnutdinov': {'хуснутдинов'},
+    'redko': {'редько'},
+    'izmaylov': {'измайлов'},
+    'mustafin': {'мустафин'},
+    'polyakov': {'поляков'},
+    'prasolov': {'прасолов', 'соловьев'},
+    'fomichev': {'фомичев'},
+    'khoroshevsky': {'хорошевский'},
+    'ushakov': {'ушаков'},
+}
 
 
 def load_fact_1c_settings(upload_dir):
@@ -51,25 +71,53 @@ def save_fact_1c_settings(upload_dir, source_currency):
 
 
 def check_is_admin(user):
-    """Проверка прав: администратор или аналитик"""
-    if user.is_superuser or user.is_staff:
-        return True
-    profile = getattr(user, 'profile', None)
-    return bool(profile and profile.role in ['analyst', 'director'])
+    """Совместимый псевдоним: управлять файлами могут администратор и аналитик."""
+    return can_manage_files(user)
+
+
+def _name_tokens(value):
+    return {
+        token.strip('.,').lower().replace('ё', 'е')
+        for token in str(value or '').split()
+        if token.strip('.,')
+    }
+
+
+def get_user_manager(user):
+    """Возвращает строго закреплённого за аккаунтом менеджера."""
+    if not is_manager(user):
+        return None
+
+    username = user.username.strip().lower()
+    profile_name = getattr(getattr(user, 'profile', None), 'manager_name', '')
+    profile_tokens = _name_tokens(profile_name)
+
+    for manager in MANAGERS_LIST:
+        valid_usernames = {manager['username'].lower(), manager['id'].lower()}
+        if manager['id'] == 'prasolov':
+            valid_usernames.add('prasolov_soloviev')
+        if username in valid_usernames:
+            return manager
+
+        identity_tokens = MANAGER_IDENTITY_TOKENS.get(manager['id'], set())
+        if profile_tokens.intersection(identity_tokens):
+            return manager
+    return None
+
+
+def manager_name_matches(manager, value):
+    """Сопоставляет имя из итоговой таблицы с закреплённым менеджером."""
+    manager_tokens = MANAGER_IDENTITY_TOKENS.get(manager['id'], set())
+    value_tokens = _name_tokens(value)
+    return bool(manager_tokens and value_tokens and manager_tokens.intersection(value_tokens))
 
 
 def user_can_access_manager(user, manager):
     """Проверяет право пользователя видеть файл конкретного менеджера."""
-    if check_is_admin(user):
+    if can_manage_files(user):
         return True
-    profile = getattr(user, 'profile', None)
-    profile_name = (getattr(profile, 'manager_name', '') or '').strip().lower()
-    manager_surname = manager['name'].split()[0].lower()
-    return (
-        manager['username'] == user.username
-        or manager['id'] in user.username.lower()
-        or (profile_name and profile_name.startswith(manager_surname))
-    )
+    assigned_manager = get_user_manager(user)
+    return bool(assigned_manager and assigned_manager['id'] == manager['id'])
 
 
 def get_instant_file_info(file_path):
@@ -88,7 +136,13 @@ def get_instant_file_info(file_path):
 
     # Структуру берем только из кэша (если считалась при загрузке)
     cache_key = f"excel_meta_{os.path.basename(file_path)}"
-    meta = cache.get(cache_key) or {'rows': '—', 'cols': '—', 'sheets_count': 1, 'sheet_names': 'Основной'}
+    meta = cache.get(cache_key) or {
+        'rows': '—',
+        'cols': '—',
+        'sheets_count': 1,
+        'sheet_names': 'Основной',
+        'periods': '—',
+    }
 
     return {
         'modified': modified_time,
@@ -96,7 +150,8 @@ def get_instant_file_info(file_path):
         'rows': meta.get('rows', '—'),
         'cols': meta.get('cols', '—'),
         'sheets_count': meta.get('sheets_count', 1),
-        'sheet_names': meta.get('sheet_names', '—')
+        'sheet_names': meta.get('sheet_names', '—'),
+        'periods': meta.get('periods', '—'),
     }
 
 
@@ -151,17 +206,50 @@ def scan_raw_directory(upload_dir):
     return manager_files, fact_1c_info
 
 
-def remove_old_manager_files(upload_dir, mgr_id):
+def remove_old_manager_files(upload_dir, mgr_id, keep_path=None):
     """Удаление старых версий файлов менеджера"""
     prefix = f"plan_{mgr_id}_"
     if not os.path.exists(upload_dir):
         return
     for fname in os.listdir(upload_dir):
         if fname.startswith(prefix):
+            if keep_path and os.path.abspath(os.path.join(upload_dir, fname)) == os.path.abspath(keep_path):
+                continue
             try:
                 os.remove(os.path.join(upload_dir, fname))
             except OSError:
                 pass
+
+
+def save_uploaded_file_safely(uploaded_file, destination_path):
+    """Сначала полностью записывает новый файл, затем атомарно помещает его на место."""
+    destination_path = Path(destination_path)
+    pending_path = destination_path.parent / f'.upload-{uuid.uuid4().hex}.tmp'
+    try:
+        uploaded_file.seek(0)
+        with open(pending_path, 'wb') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+        os.replace(pending_path, destination_path)
+    finally:
+        uploaded_file.seek(0)
+        if pending_path.exists():
+            pending_path.unlink()
+
+
+def safe_upload_name(uploaded_file):
+    """Удаляет путь и небезопасные символы из имени загруженного файла."""
+    original_name = Path(uploaded_file.name).name
+    clean_name = get_valid_filename(original_name).replace(' ', '_')
+    return clean_name or 'upload.xlsx'
+
+
+def cache_validation_result(stored_filename, validation_result):
+    cache.set(
+        f'excel_meta_{stored_filename}',
+        validation_result.as_cache_data(),
+        timeout=None,
+    )
 
 
 @login_required
@@ -169,6 +257,8 @@ def upload_view(request):
     """Сверхбыстрый модуль загрузки файлов"""
     user = request.user
     is_admin = check_is_admin(user)
+    if not is_admin and not is_manager(user):
+        raise PermissionDenied('Раздел загрузки доступен менеджерам и аналитикам.')
     upload_dir = os.path.join(settings.BASE_DIR, 'data', 'raw')
     os.makedirs(upload_dir, exist_ok=True)
 
@@ -181,21 +271,35 @@ def upload_view(request):
                 messages.error(request, 'Выберите валюту выгрузки: рубли или юани.')
                 return redirect('upload_files')
 
+            try:
+                validation = validate_actual_file(f_1c)
+            except ExcelValidationError as exc:
+                messages.error(request, f'Файл не загружен: {exc}')
+                return redirect('upload_files')
+
+            clean_name = safe_upload_name(f_1c)
+            dest_path = os.path.join(upload_dir, f"fact_1c_{clean_name}")
+            try:
+                save_uploaded_file_safely(f_1c, dest_path)
+            except OSError:
+                messages.error(request, 'Не удалось сохранить файл. Предыдущий файл не изменён.')
+                return redirect('upload_files')
             for fname in os.listdir(upload_dir):
-                if fname.startswith('fact_1c_'):
+                old_path = os.path.join(upload_dir, fname)
+                if fname.startswith('fact_1c_') and os.path.abspath(old_path) != os.path.abspath(dest_path):
                     try:
-                        os.remove(os.path.join(upload_dir, fname))
+                        os.remove(old_path)
                     except OSError:
                         pass
-
-            clean_name = f_1c.name.replace(' ', '_')
-            dest_path = os.path.join(upload_dir, f"fact_1c_{clean_name}")
-            with open(dest_path, 'wb+') as dest:
-                for chunk in f_1c.chunks():
-                    dest.write(chunk)
+            cache_validation_result(os.path.basename(dest_path), validation)
             save_fact_1c_settings(upload_dir, source_currency)
             currency_label = 'рубли — пересчитать по курсу ЦБ' if source_currency == 'RUB' else 'юани — без пересчёта'
-            messages.success(request, f'Выгрузка 1С «{f_1c.name}» сохранена. Валюта: {currency_label}.')
+            messages.success(
+                request,
+                f'Файл «{f_1c.name}» загружен. Период: {validation.period_label}. Валюта: {currency_label}.',
+            )
+            for warning in validation.warnings:
+                messages.warning(request, warning)
             return redirect('upload_files')
 
         # Изменение валюты уже загруженной выгрузки без повторной загрузки файла
@@ -210,7 +314,7 @@ def upload_view(request):
                 for fname in os.listdir(upload_dir)
             )
             if not has_fact_1c:
-                messages.error(request, 'Сначала загрузите файл выгрузки 1С.')
+                messages.error(request, 'Сначала загрузите файл с фактическими данными.')
                 return redirect('upload_files')
 
             save_fact_1c_settings(upload_dir, source_currency)
@@ -223,24 +327,35 @@ def upload_view(request):
             field_name = f"file_manager_{mgr['id']}"
             if field_name in request.FILES:
                 if not is_admin:
-                    user_matched = (
-                            mgr['username'] == user.username or
-                            mgr['id'] in user.username.lower() or
-                            (hasattr(user, 'profile') and user.profile.manager_name and mgr['name'].startswith(
-                                user.profile.manager_name.split()[0]))
-                    )
-                    if not user_matched:
+                    if not user_can_access_manager(user, mgr):
                         continue
 
                 m_file = request.FILES[field_name]
-                remove_old_manager_files(upload_dir, mgr['id'])
+                try:
+                    validation = validate_manager_file(m_file)
+                except ExcelValidationError as exc:
+                    messages.error(request, f'Файл не загружен: {exc}')
+                    return redirect('upload_files')
 
-                clean_name = m_file.name.replace(' ', '_')
+                clean_name = safe_upload_name(m_file)
                 dest_path = os.path.join(upload_dir, f"plan_{mgr['id']}_{clean_name}")
-                with open(dest_path, 'wb+') as dest:
-                    for chunk in m_file.chunks():
-                        dest.write(chunk)
-                messages.success(request, f'Файл для менеджера {mgr["name"]} сохранен.')
+                try:
+                    save_uploaded_file_safely(m_file, dest_path)
+                except OSError:
+                    messages.error(request, 'Не удалось сохранить файл. Предыдущий файл не изменён.')
+                    return redirect('upload_files')
+                remove_old_manager_files(upload_dir, mgr['id'], keep_path=dest_path)
+                remove_manager_reports(
+                    os.path.join(settings.BASE_DIR, 'data', 'processed', 'manager_reports'),
+                    mgr['id'],
+                )
+                cache_validation_result(os.path.basename(dest_path), validation)
+                messages.success(
+                    request,
+                    f'Файл для менеджера {mgr["name"]} сохранён. Периоды: {validation.period_label}.',
+                )
+                for warning in validation.warnings:
+                    messages.warning(request, warning)
                 return redirect('upload_files')
 
     manager_files_map, fact_1c_info = scan_raw_directory(upload_dir)
@@ -295,7 +410,7 @@ def download_manager_report_view(request, manager_id):
         raise Http404('Исходный файл менеджера удалён.')
     source_path = os.path.join(settings.BASE_DIR, 'data', 'raw', source_info['stored_filename'])
     if not os.path.exists(source_path) or report_path.stat().st_mtime < os.path.getmtime(source_path):
-        raise Http404('После загрузки нового исходного файла необходимо снова запустить ETL.')
+        raise Http404('После загрузки нового исходного файла необходимо снова запустить обработку.')
 
     return FileResponse(
         open(report_path, 'rb'),
@@ -306,6 +421,7 @@ def download_manager_report_view(request, manager_id):
 
 
 @login_required
+@require_POST
 def delete_file_view(request, file_type, target_id):
     """Удаление файла менеджера или файла 1С"""
     user = request.user
@@ -314,7 +430,7 @@ def delete_file_view(request, file_type, target_id):
 
     if file_type == 'fact_1c':
         if not is_admin:
-            messages.error(request, 'Недостаточно прав для удаления выгрузки 1С.')
+            messages.error(request, 'Недостаточно прав для удаления файла с фактическими данными.')
             return redirect('upload_files')
         for fname in os.listdir(upload_dir):
             if fname.startswith('fact_1c_') or fname == target_id:
@@ -322,7 +438,7 @@ def delete_file_view(request, file_type, target_id):
                     os.remove(os.path.join(upload_dir, fname))
                 except OSError:
                     pass
-        messages.success(request, 'Файл 1С:ERP удален.')
+        messages.success(request, 'Файл с фактическими данными удалён.')
 
     elif file_type == 'manager':
         if not is_admin:
@@ -343,23 +459,30 @@ def delete_file_view(request, file_type, target_id):
 @login_required
 def readiness_view(request):
     """Модуль готовности файлов и ETL"""
+    if not can_manage_files(request.user) and not is_manager(request.user):
+        raise PermissionDenied('Раздел обработки недоступен для этой роли.')
     return render(request, 'uploads/processing_readiness.html')
 
 
 @login_required
 def compare_view(request):
     """Модуль сопоставления исторических срезов планов и расчета дельты"""
-    is_admin = check_is_admin(request.user)
+    if not can_compare_snapshots(request.user):
+        raise PermissionDenied('Нет доступа к сравнению прогнозов.')
+    is_admin = not is_manager(request.user)
 
     raw_dates = get_available_snapshot_dates(base_dir=os.path.join(settings.BASE_DIR, 'data', 'processed', 'snapshots'))
-    available_slices = [{'id': d, 'name': f"Срез планов от {d}"} for d in raw_dates]
+    available_slices = [{'id': d, 'name': f"Версия от {d}"} for d in raw_dates]
 
     slice_a = request.GET.get('slice_a', '')
     slice_b = request.GET.get('slice_b', '')
     manager_filter = request.GET.get('manager', 'all')
 
     if not is_admin:
-        manager_filter = request.user.username
+        assigned_manager = get_user_manager(request.user)
+        if assigned_manager is None:
+            raise PermissionDenied('Для аккаунта не назначен менеджер.')
+        manager_filter = assigned_manager['name'].split()[0]
 
     comparison_result = None
     is_calculated = False

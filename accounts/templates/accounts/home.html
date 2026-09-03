@@ -1,70 +1,74 @@
 {% extends "accounts/base.html" %}
 
-{% block title %}Главная | Sales Analytics{% endblock %}
+{% block title %}Главная | Планирование продаж{% endblock %}
 
 {% block content %}
 <div class="container px-4 py-4">
 
     <!-- Заголовок приветствия -->
     <div class="text-center my-4 py-2">
-        <h3 class="fw-bold mb-2" style="color: var(--brand-navy);">Управление аналитикой и планированием продаж</h3>
+        <h3 class="fw-bold mb-2" style="color: var(--brand-navy);">Планирование продаж</h3>
         <p class="text-muted small mx-auto" style="max-width: 680px;">
-            Единый контур сквозной обработки индивидуальных планов продаж менеджеров, сопоставления фактических данных из 1С:ERP и мониторинга показателей.
+            Загрузка планов, обновление фактических данных и контроль результатов.
         </p>
     </div>
 
     <!-- 3 Модуля в едином стиле -->
     <div class="row g-4 my-3 justify-content-center">
         
-        <!-- Модуль 01 -->
+        {% if can_upload_files %}
+        <!-- Загрузка файлов -->
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
+            <div class="card panel-card p-4 h-100 d-flex flex-column">
                 <div class="mb-3">
-                    <span class="badge px-2 py-1 text-danger bg-danger-subtle fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">МОДУЛЬ 01</span>
+                    <span class="badge px-2 py-1 text-secondary bg-light border fw-semibold">01</span>
                 </div>
-                <h5 class="fw-bold text-dark mb-2">Реестр и импорт файлов</h5>
+                <h5 class="fw-bold text-dark mb-2">Загрузка файлов</h5>
                 <p class="text-muted small flex-grow-1">
-                    Загрузка персональных файлов индивидуальных планов менеджеров (Excel) и актуальной выгрузки фактических продаж из 1С:ERP.
+                    Файлы планов менеджеров и фактические данные за отчётный месяц.
                 </p>
                 <div class="mt-3">
                     <a href="{% url 'upload_files' %}" class="btn btn-outline-secondary w-100 py-2 fw-semibold rounded-3" style="font-size: 0.88rem;">
-                        Перейти к реестру &rarr;
+                        Открыть
                     </a>
                 </div>
             </div>
         </div>
+        {% endif %}
 
-        <!-- Модуль 02 -->
+        {% if can_open_processing %}
+        <!-- Обработка данных -->
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
+            <div class="card panel-card p-4 h-100 d-flex flex-column">
                 <div class="mb-3">
-                    <span class="badge px-2 py-1 text-danger bg-danger-subtle fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">МОДУЛЬ 02</span>
+                    <span class="badge px-2 py-1 text-secondary bg-light border fw-semibold">02</span>
                 </div>
-                <h5 class="fw-bold text-dark mb-2">Обработка и нормализация (ETL)</h5>
+                <h5 class="fw-bold text-dark mb-2">Обработка данных</h5>
                 <p class="text-muted small flex-grow-1">
-                    Автоматическое развертывание широких таблиц (UNPIVOT), валидация номенклатурных позиций и слияние плановых срезов с фактом.
+                    Проверка файлов и объединение планов с фактическими значениями.
                 </p>
                 <div class="mt-3">
                     <a href="{% url 'processing_page' %}" class="btn btn-outline-secondary w-100 py-2 fw-semibold rounded-3" style="font-size: 0.88rem;">
-                        Контроль и обработка &rarr;
+                        Открыть
                     </a>
                 </div>
             </div>
         </div>
+        {% endif %}
 
-        <!-- Модуль 03 -->
+        <!-- Отчёты -->
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-3 p-4 h-100 bg-white d-flex flex-column">
+            <div class="card panel-card p-4 h-100 d-flex flex-column">
                 <div class="mb-3">
-                    <span class="badge px-2 py-1 text-danger bg-danger-subtle fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">МОДУЛЬ 03</span>
+                    <span class="badge px-2 py-1 text-secondary bg-light border fw-semibold">03</span>
                 </div>
-                <h5 class="fw-bold text-dark mb-2">Аналитическая панель (BI)</h5>
+                <h5 class="fw-bold text-dark mb-2">Отчёты</h5>
                 <p class="text-muted small flex-grow-1">
-                    Мониторинг ключевых показателей: выполнение планов AOP и Forecast, динамика выручки в валютах CNY/RUB и структура продаж.
+                    План, прогноз, фактические продажи и выполнение показателей.
                 </p>
                 <div class="mt-3">
                     <a href="{% url 'dashboard' %}" class="btn text-white w-100 py-2 fw-bold rounded-3" style="background-color: var(--brand-navy); font-size: 0.88rem;">
-                        Открыть панель отчетов
+                        Открыть
                     </a>
                 </div>
             </div>

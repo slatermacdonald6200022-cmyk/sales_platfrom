@@ -134,6 +134,14 @@ def merge_plans_with_1c(plans_df: pd.DataFrame, actuals_1c_df: pd.DataFrame, exi
     """
     plans = plans_df.copy()
     actuals = actuals_1c_df.copy() if actuals_1c_df is not None else pd.DataFrame()
+    matching_report = {
+        'total_rows': 0,
+        'matched_rows': 0,
+        'unmatched_rows': 0,
+        'matched_amount_cny': 0.0,
+        'unmatched_amount_cny': 0.0,
+        'unmatched_df': pd.DataFrame(),
+    }
 
     # 1. Приведение клиентов Ушакова к единому пулу в планах
     if "Менеджер" in plans.columns:
@@ -175,6 +183,71 @@ def merge_plans_with_1c(plans_df: pd.DataFrame, actuals_1c_df: pd.DataFrame, exi
     plans["_key_client"] = clean_key(plans["Клиент"])
     plans["_key_article"] = clean_key(plans["Артикул"])
     plans["_key_month"] = parse_period_key(plans)
+
+    # Диагностика использует те же очищенные ключи, что и основное соединение,
+    # но не участвует в расчёте итоговой таблицы.
+    if not actuals.empty:
+        diagnostic_rows = actuals[[
+            client_col_1c, art_col_1c, '_key_client', '_key_article', '_key_month',
+            qty_col_1c, rev_col_1c,
+        ]].copy()
+        diagnostic_rows = diagnostic_rows.rename(columns={
+            client_col_1c: 'Клиент из выгрузки',
+            art_col_1c: 'Артикул из выгрузки',
+            qty_col_1c: 'Факт, шт',
+            rev_col_1c: 'Факт, CNY',
+            '_key_month': 'Период',
+        })
+        diagnostic_rows['Факт, шт'] = pd.to_numeric(
+            diagnostic_rows['Факт, шт'], errors='coerce'
+        ).fillna(0.0)
+        diagnostic_rows['Факт, CNY'] = pd.to_numeric(
+            diagnostic_rows['Факт, CNY'], errors='coerce'
+        ).fillna(0.0)
+        diagnostic_rows = diagnostic_rows.groupby(
+            [
+                'Клиент из выгрузки', 'Артикул из выгрузки',
+                '_key_client', '_key_article', 'Период',
+            ],
+            as_index=False,
+            dropna=False,
+        ).agg({'Факт, шт': 'sum', 'Факт, CNY': 'sum'})
+
+        plan_keys = plans[['_key_client', '_key_article', '_key_month']].drop_duplicates()
+        checked = diagnostic_rows.merge(
+            plan_keys,
+            left_on=['_key_client', '_key_article', 'Период'],
+            right_on=['_key_client', '_key_article', '_key_month'],
+            how='left',
+            indicator=True,
+        )
+        matched_mask = checked['_merge'].eq('both')
+        plan_clients = set(plans['_key_client'])
+        plan_pairs = set(zip(plans['_key_client'], plans['_key_article']))
+
+        def unmatched_reason(row):
+            if row['_key_client'] not in plan_clients:
+                return 'Клиент не найден в планах'
+            if (row['_key_client'], row['_key_article']) not in plan_pairs:
+                return 'Артикул не найден у клиента'
+            return 'Нет строки плана за этот период'
+
+        unmatched = checked.loc[~matched_mask].copy()
+        unmatched['Причина'] = ''
+        if not unmatched.empty:
+            unmatched['Причина'] = unmatched.apply(unmatched_reason, axis=1)
+        unmatched_export = unmatched[[
+            'Клиент из выгрузки', 'Артикул из выгрузки', 'Период',
+            'Факт, шт', 'Факт, CNY', 'Причина',
+        ]].copy()
+        matching_report = {
+            'total_rows': int(len(checked)),
+            'matched_rows': int(matched_mask.sum()),
+            'unmatched_rows': int((~matched_mask).sum()),
+            'matched_amount_cny': float(checked.loc[matched_mask, 'Факт, CNY'].sum()),
+            'unmatched_amount_cny': float(checked.loc[~matched_mask, 'Факт, CNY'].sum()),
+            'unmatched_df': unmatched_export,
+        }
 
     # 4. База соединения — только строки плана (LEFT JOIN)
     merged = pd.merge(
@@ -249,7 +322,9 @@ def merge_plans_with_1c(plans_df: pd.DataFrame, actuals_1c_df: pd.DataFrame, exi
         if col not in merged.columns:
             merged[col] = "" if col in ["Клиент", "Менеджер", "Поставщик", "Наименование", "Месяц", "Артикул"] else 0.0
 
-    return merged[target_cols]
+    result = merged[target_cols]
+    result.attrs['matching_report'] = matching_report
+    return result
 
 
 def create_full_snapshot(raw_dir="data/raw", date_str=None):
@@ -295,16 +370,41 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     print(f"💱 Режим суммы выгрузки 1С: {currency_label}")
 
     actuals_dfs = []
+    actual_files = []
+    report_periods = set()
+    exchange_rates = set()
+    source_amount = 0.0
     for f in os.listdir(raw_dir):
         if (f.startswith("fact_1c_") or "1c" in f.lower() or "факт" in f.lower()) and (
                 f.endswith(".xlsx") or f.endswith(".xls")):
             file_1c_path = os.path.join(raw_dir, f)
             print(f"📖 Чтение отчета 1С: {f}")
             df_1c = normalize_1c_file(file_1c_path, source_currency=source_currency)
+            report_period = df_1c.attrs.get('report_period')
+            if report_period:
+                report_periods.add(report_period)
+            if df_1c.attrs.get('exchange_rate') is not None:
+                exchange_rates.add(float(df_1c.attrs['exchange_rate']))
+            source_amount += float(df_1c.attrs.get('source_amount', 0.0))
             if not df_1c.empty:
                 actuals_dfs.append(df_1c)
+                actual_files.append(f)
 
     all_actuals = pd.concat(actuals_dfs, ignore_index=True) if actuals_dfs else pd.DataFrame()
+
+    if not report_periods:
+        raise ValueError('Не удалось определить отчётный период файла с фактическими данными.')
+    if len(report_periods) != 1:
+        periods_label = ', '.join(sorted(report_periods))
+        raise ValueError(
+            f'Найдены выгрузки за разные отчётные периоды: {periods_label}. '
+            'Оставьте файл только за один месяц.'
+        )
+    if all_actuals.empty:
+        raise ValueError('В выгрузке не найдено строк с фактическими данными для обработки.')
+
+    report_period = next(iter(report_periods))
+    report_year, report_month = (int(part) for part in report_period.split('-'))
 
     # 4. Слияние (строгий LEFT JOIN по ключу YYYY-MM)
     final_df = merge_plans_with_1c(plans_df, all_actuals, existing_facts)
@@ -314,8 +414,57 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     final_path = final_dir / "FINAL_SALES_FACT_TABLE.xlsx"
     final_df.to_excel(final_path, index=False)
 
-    # Персональные копии исходных планов с заполненными количественными фактами.
-    export_all_manager_fact_files(raw_dir=raw_dir, final_df=final_df, date_str=date_str)
+    matching_report = final_df.attrs.get('matching_report', {})
+    unmatched_df = matching_report.get('unmatched_df', pd.DataFrame())
+    unmatched_path = None
+    if unmatched_df is not None and not unmatched_df.empty:
+        unmatched_path = final_dir / 'UNMATCHED_FACTS.xlsx'
+        unmatched_df.to_excel(unmatched_path, index=False)
 
-    print(f"✅ Итоговая витрина создана: {final_path} ({len(final_df):,} строк)")
+    # Персональные копии исходных планов с заполненными количественными фактами.
+    manager_results = export_all_manager_fact_files(
+        raw_dir=raw_dir,
+        final_df=final_df,
+        date_str=date_str,
+    )
+
+    metadata = {
+        'report_period': report_period,
+        'report_year': report_year,
+        'report_month': report_month,
+        'processed_at': datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+        'source_currency': source_currency,
+        'exchange_rate': next(iter(exchange_rates)) if len(exchange_rates) == 1 else None,
+        'source_amount': source_amount,
+        'actual_files': actual_files,
+        'source_files': sorted(
+            filename for filename in os.listdir(raw_dir)
+            if filename.startswith('plan_') and filename.lower().endswith(('.xlsx', '.xlsm'))
+        ) + actual_files,
+        'total_actual_rows': matching_report.get('total_rows', 0),
+        'matched_rows': matching_report.get('matched_rows', 0),
+        'unmatched_rows': matching_report.get('unmatched_rows', 0),
+        'matched_amount_cny': matching_report.get('matched_amount_cny', 0.0),
+        'unmatched_amount_cny': matching_report.get('unmatched_amount_cny', 0.0),
+    }
+    metadata_path = final_dir / 'processing_metadata.json'
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding='utf-8',
+    )
+
+    final_df.attrs['processing_info'] = {
+        **metadata,
+        'final_path': str(final_path.resolve()),
+        'unmatched_path': str(unmatched_path.resolve()) if unmatched_path else '',
+        'manager_reports': {
+            manager_id: str(result['path'].resolve())
+            for manager_id, result in manager_results.items()
+        },
+    }
+
+    print(
+        f"✅ Итоговая витрина создана: {final_path} "
+        f"({len(final_df):,} строк, период {report_period})"
+    )
     return final_df

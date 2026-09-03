@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Sales Analytics | Аналитическая платформа{% endblock %}</title>
+    <title>{% block title %}Планирование продаж{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
@@ -12,8 +12,10 @@
             --brand-navy: #0B2545;
             --brand-blue: #134074;
             --brand-sky: #0284c7;
+            --brand-red: #D90429;
             --brand-bg: #F8FAFC;
             --brand-border: #E2E8F0;
+            --brand-muted: #64748B;
         }
 
         body {
@@ -23,7 +25,6 @@
             min-height: 100vh;
         }
 
-        /* Фирменная белая навигация */
         .navbar-custom {
             background-color: #ffffff;
             border-bottom: 1px solid var(--brand-border);
@@ -31,10 +32,72 @@
         }
 
         .brand-title {
-            color: #0284c7;
+            color: var(--brand-navy);
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0.1px;
+        }
+
+        .brand-mark {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            background: var(--brand-navy);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
             font-weight: 800;
-            font-size: 1.15rem;
-            letter-spacing: 0.3px;
+        }
+
+        .page-shell {
+            padding: 1.5rem;
+            min-height: calc(100vh - 64px);
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--brand-border);
+        }
+
+        .page-title {
+            color: var(--brand-navy);
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin: 0 0 0.25rem;
+        }
+
+        .page-description {
+            color: var(--brand-muted);
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .panel-card {
+            background: #fff;
+            border: 1px solid var(--brand-border) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05) !important;
+        }
+
+        .btn-brand {
+            background: var(--brand-navy);
+            border-color: var(--brand-navy);
+            color: #fff;
+        }
+
+        .btn-brand:hover,
+        .btn-brand:focus {
+            background: var(--brand-blue);
+            border-color: var(--brand-blue);
+            color: #fff;
         }
 
         /* Кликабельный бейдж профиля */
@@ -81,17 +144,19 @@
 </head>
 <body>
 
-    <!-- Единая шапка -->
     <nav class="navbar navbar-custom py-2 mb-3">
         <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
 
             <a class="navbar-brand d-flex align-items-center gap-2 m-0 text-decoration-none" href="{% url 'home' %}">
-                <span class="fs-5">📊</span>
-                <span class="brand-title">Sales Analytics</span>
+                <span class="brand-mark">ПП</span>
+                <span class="brand-title">Планирование продаж</span>
             </a>
 
             <div class="d-flex align-items-center gap-3">
                 {% if request.user.is_authenticated %}
+                    <a href="{% url 'processing_history' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 d-none d-md-inline-flex">
+                        История обработок
+                    </a>
                     <a href="{% url 'profile' %}" class="profile-badge d-flex align-items-center gap-2" title="Личный кабинет">
                         <div class="avatar-circle">
                             {% if request.user.profile.avatar %}
@@ -105,7 +170,13 @@
                                 {{ request.user.profile.manager_name|default:request.user.get_full_name|default:request.user.username }}
                             </div>
                             <div class="text-muted" style="font-size: 0.72rem; margin-top: 2px;">
-                                {% if request.user.is_superuser %}Администратор{% else %}Менеджер{% endif %}
+                                {% if request.user.is_superuser %}
+                                    Администратор
+                                {% elif request.user.profile %}
+                                    {{ request.user.profile.get_role_display }}
+                                {% else %}
+                                    Пользователь
+                                {% endif %}
                             </div>
                         </div>
                     </a>

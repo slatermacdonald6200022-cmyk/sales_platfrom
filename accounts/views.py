@@ -8,11 +8,21 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.conf import settings
+from django.views.decorators.http import require_POST
 
 from django.contrib import messages
 
+from accounts.permissions import can_manage_files, can_view_company_dashboard, is_manager
+from uploads.views import get_user_manager, manager_name_matches
+
 DATA_DIR = Path(settings.BASE_DIR) / "data"
 FINAL_DIR = DATA_DIR / "processed" / "final"
+
+MONTH_NAMES_RU = {
+    1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
+    5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
+    9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь',
+}
 
 
 def get_latest_final_file():
@@ -21,6 +31,31 @@ def get_latest_final_file():
         return None
     final_files = sorted(list(FINAL_DIR.glob("**/FINAL_SALES_FACT_TABLE.xlsx")), reverse=True)
     return final_files[0] if final_files else None
+
+
+def get_reporting_period(final_file, df):
+    """Возвращает период последней обработки, сохраняя поддержку старых витрин."""
+    metadata_path = Path(final_file).with_name('processing_metadata.json')
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+        year = int(metadata['report_year'])
+        month = int(metadata['report_month'])
+        if year >= 2000 and 1 <= month <= 12:
+            return year, month
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+        pass
+
+    # Старые результаты не имеют файла метаданных. Для них берём самый поздний
+    # период с ненулевым фактом, а если фактов нет — последний период таблицы.
+    dated = df.dropna(subset=['Год', 'Номер месяца']).copy()
+    if dated.empty:
+        raise ValueError('В итоговой таблице не найдено корректных периодов.')
+    if 'Факт, CNY' in dated.columns and 'Факт, шт' in dated.columns:
+        fact_rows = dated[(dated['Факт, CNY'] != 0) | (dated['Факт, шт'] != 0)]
+        if not fact_rows.empty:
+            dated = fact_rows
+    latest = dated.sort_values(['Год', 'Номер месяца']).iloc[-1]
+    return int(latest['Год']), int(latest['Номер месяца'])
 
 
 def format_currency(val):
@@ -75,6 +110,7 @@ def login_view(request):
     return render(request, 'accounts/login.html', {'form': form})
 
 
+@require_POST
 def logout_view(request):
     """Выход из системы."""
     logout(request)
@@ -84,7 +120,10 @@ def logout_view(request):
 @login_required
 def home_view(request):
     """Главная страница платформы."""
-    return render(request, 'accounts/home.html')
+    return render(request, 'accounts/home.html', {
+        'can_upload_files': can_manage_files(request.user) or is_manager(request.user),
+        'can_open_processing': can_manage_files(request.user) or is_manager(request.user),
+    })
 
 
 @login_required
@@ -100,7 +139,7 @@ def profile_view(request):
         if 'avatar' in request.FILES and profile:
             profile.avatar = request.FILES['avatar']
             profile.save()
-            messages.success(request, 'Фото профиля успешно обновлено!')
+            messages.success(request, 'Фото профиля обновлено.')
             return redirect('profile')
 
     full_name = getattr(profile, 'manager_name', None) or user.get_full_name() or user.username
@@ -124,14 +163,14 @@ def dashboard_view(request):
     """
     user = request.user
     profile = getattr(user, 'profile', None)
-    is_admin = user.is_superuser or getattr(profile, 'role', '') in ['director', 'analyst']
+    is_admin = can_view_company_dashboard(user)
     manager_name = getattr(profile, 'manager_name', '') or user.get_full_name() or user.username
 
     latest_file = get_latest_final_file()
     if not latest_file or not latest_file.exists():
         return render(request, 'accounts/dashboard.html', {
             'has_data': False,
-            'message': 'Витрина данных еще не сформирована. Выполните обработку на Шаге 2.'
+            'message': 'Данные ещё не подготовлены. Запустите обработку файлов.'
         })
 
     try:
@@ -139,7 +178,7 @@ def dashboard_view(request):
     except Exception as e:
         return render(request, 'accounts/dashboard.html', {
             'has_data': False,
-            'message': f'Ошибка при чтении витрины данных: {str(e)}'
+            'message': f'Не удалось открыть итоговые данные: {str(e)}'
         })
 
     # Приведение числовых колонок
@@ -147,22 +186,42 @@ def dashboard_view(request):
         if num_col in df.columns:
             df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
 
-    if 'Год' in df.columns:
-        df['Год'] = pd.to_numeric(df['Год'], errors='coerce').fillna(2026).astype(int)
-    if 'Номер месяца' in df.columns:
-        df['Номер месяца'] = pd.to_numeric(df['Номер месяца'], errors='coerce').fillna(1).astype(int)
+    if 'Год' not in df.columns or 'Номер месяца' not in df.columns:
+        return render(request, 'accounts/dashboard.html', {
+            'has_data': False,
+            'message': 'В итоговой таблице отсутствуют столбцы периода.'
+        })
+    df['Год'] = pd.to_numeric(df['Год'], errors='coerce')
+    df['Номер месяца'] = pd.to_numeric(df['Номер месяца'], errors='coerce')
+    df = df.dropna(subset=['Год', 'Номер месяца']).copy()
+    df['Год'] = df['Год'].astype(int)
+    df['Номер месяца'] = df['Номер месяца'].astype(int)
+
+    try:
+        reporting_year, reporting_month = get_reporting_period(latest_file, df)
+    except ValueError as exc:
+        return render(request, 'accounts/dashboard.html', {
+            'has_data': False,
+            'message': str(exc),
+        })
 
     # Ограничение датафрейма для менеджера
-    if not is_admin and manager_name and 'Менеджер' in df.columns:
-        matched_rows = df['Менеджер'].astype(str).str.contains(manager_name, case=False, na=False)
-        if matched_rows.any():
-            df = df[matched_rows]
+    if not is_admin:
+        assigned_manager = get_user_manager(user)
+        if assigned_manager is None or 'Менеджер' not in df.columns:
+            df = df.iloc[0:0].copy()
+        else:
+            matched_rows = df['Менеджер'].apply(
+                lambda value: manager_name_matches(assigned_manager, value)
+            )
+            # При ошибке сопоставления возвращаем пустой набор, а не данные всей компании.
+            df = df[matched_rows].copy()
 
     # Получение параметров фильтрации из GET-запроса
     selected_manager = request.GET.get('manager', '')
     selected_article = request.GET.get('article', '')
     selected_client = request.GET.get('client', '')
-    selected_period = request.GET.get('period', 'current_year')
+    selected_period = request.GET.get('period', 'reporting_period')
 
     # АВТОПОДСТАНОВКА МЕНЕДЖЕРА ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ
     if not is_admin:
@@ -206,8 +265,9 @@ def dashboard_view(request):
 
     # 5. Опции селектора периодов
     available_years = sorted(df['Год'].dropna().unique().astype(int).tolist())
+    reporting_month_name = MONTH_NAMES_RU.get(reporting_month, f'Месяц {reporting_month}')
     periods_options = [
-        ('current_year', 'Весь 2026 год (Текущий)'),
+        ('reporting_period', f'Отчётный период — {reporting_month_name} {reporting_year}'),
         ('all_time', 'За все время'),
     ]
     for y in available_years:
@@ -223,15 +283,15 @@ def dashboard_view(request):
     # -------------------------------------------------------------
     # РАСЧЕТ ДАННЫХ ДЛЯ KPI И ГРАФИКОВ
     # -------------------------------------------------------------
-    target_year = 2026
-    target_month = 5
+    target_year = reporting_year
+    target_month = reporting_month
 
-    if selected_period == 'current_year':
-        target_year = 2026
-        period_df = df[df['Год'] == target_year]
-        month_slice = period_df[period_df['Номер месяца'] == target_month]
-        year_slice = period_df
-        ytd_slice = period_df[period_df['Номер месяца'] <= target_month]
+    if selected_period in {'reporting_period', 'current_year'}:
+        selected_period = 'reporting_period'
+        year_slice = df[df['Год'] == target_year]
+        period_df = year_slice[year_slice['Номер месяца'] == target_month]
+        month_slice = period_df
+        ytd_slice = year_slice[year_slice['Номер месяца'] <= target_month]
     elif selected_period == 'all_time':
         period_df = df
         month_slice = df[(df['Год'] == target_year) & (df['Номер месяца'] == target_month)]
@@ -352,7 +412,7 @@ def dashboard_view(request):
         (is_admin and selected_manager) or
         selected_article or
         selected_client or
-        (selected_period != 'current_year')
+        (selected_period != 'reporting_period')
     )
 
     context = {
@@ -369,6 +429,7 @@ def dashboard_view(request):
         'selected_period': selected_period,
         'filters_active': filters_active,
         'target_year': target_year,
+        'reporting_period_label': f'{reporting_month_name} {reporting_year}',
         'kpi': kpi,
         'dyn_managers': json.dumps(dyn_managers, ensure_ascii=False),
         'dyn_aop': json.dumps(dyn_aop),

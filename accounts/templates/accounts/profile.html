@@ -1,11 +1,11 @@
 {% extends "accounts/base.html" %}
 
-{% block title %}Личный кабинет | Sales Analytics{% endblock %}
+{% block title %}Профиль | Планирование продаж{% endblock %}
 
 {% block content %}
 <div class="container px-4 py-4">
 
-    <div class="card border-0 shadow-sm rounded-3 p-4 mx-auto bg-white" style="max-width: 560px;">
+    <div class="card panel-card p-4 mx-auto" style="max-width: 560px;">
         
         <div class="text-center mb-3">
             {% if profile.avatar %}
@@ -18,11 +18,11 @@
         </div>
 
         <div class="card p-3 mb-4">
-            <label class="form-label text-muted small fw-bold mb-2">Обновить фото профиля:</label>
+            <label class="form-label text-muted small fw-bold mb-2">Фото профиля</label>
             <form method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
                 {% csrf_token %}
                 <input type="file" name="avatar" class="form-control form-control-sm" accept="image/*" required>
-                <button type="submit" class="btn btn-dark btn-sm px-3 fw-semibold">
+                <button type="submit" class="btn btn-brand btn-sm px-3 fw-semibold">
                     Загрузить
                 </button>
             </form>
@@ -34,8 +34,8 @@
                 <div class="fw-semibold text-dark">{{ user.username }}</div>
             </div>
             <div class="col-sm-6">
-                <div class="text-muted">Email / Контакт</div>
-                <div class="fw-semibold text-dark">{{ user.email|default:"Корпоративный доступ" }}</div>
+                <div class="text-muted">Электронная почта</div>
+                <div class="fw-semibold text-dark">{{ user.email|default:"Не указана" }}</div>
             </div>
             <div class="col-sm-6">
                 <div class="text-muted">Дата регистрации</div>

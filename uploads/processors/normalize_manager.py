@@ -77,10 +77,10 @@ def parse_metric_type(val):
     # Игнорируем годовые итоговые и рублевые колонки
     if any(k in s for k in TOTAL_KEYWORDS):
         return 'ignore'
-    if 'аор' in s or 'aop' in s or 'план' in s:
-        return 'aop'
     if 'прогноз' in s or 'forecast' in s or 'план-прогноз' in s:
         return 'forecast'
+    if 'аор' in s or 'aop' in s or 'план' in s:
+        return 'aop'
     if 'факт' in s or 'fact' in s or 'actual' in s:
         return 'fact'
     if 'ком' in s or 'comment' in s:

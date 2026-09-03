@@ -134,6 +134,10 @@ MAILERS = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Ограничения для загружаемых Excel-файлов.
+MAX_EXCEL_UPLOAD_SIZE = 25 * 1024 * 1024
+MAX_EXCEL_UNCOMPRESSED_SIZE = 150 * 1024 * 1024
+
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'

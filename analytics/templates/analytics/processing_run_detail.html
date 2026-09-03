@@ -1,0 +1,119 @@
+{% extends "accounts/base.html" %}
+
+{% block title %}Обработка №{{ run.id }} | Планирование продаж{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-shell">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Обработка №{{ run.id }}</h1>
+            <p class="page-description">{{ run.created_at|date:"d.m.Y H:i" }} · период {{ run.period_label }}</p>
+        </div>
+        <a href="{% url 'processing_history' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">К истории</a>
+    </div>
+
+    {% if run.status == 'failed' and show_full_details %}
+        <div class="alert alert-danger panel-card">
+            <div class="fw-semibold mb-1">Обработка не завершена</div>
+            <div>{{ run.error_message|default:"Причина не указана." }}</div>
+        </div>
+    {% endif %}
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card panel-card p-3 h-100">
+                <div class="small text-muted mb-1">Результат</div>
+                <div class="fw-semibold">{{ run.get_status_display }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card panel-card p-3 h-100">
+                <div class="small text-muted mb-1">Отчётный период</div>
+                <div class="fw-semibold">{{ run.period_label }}</div>
+            </div>
+        </div>
+        {% if show_full_details or is_director %}
+            <div class="col-md-3">
+                <div class="card panel-card p-3 h-100">
+                    <div class="small text-muted mb-1">Сопоставлено позиций</div>
+                    <div class="fs-5 fw-semibold text-success">{{ run.matched_rows }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card panel-card p-3 h-100">
+                    <div class="small text-muted mb-1">Не найдено позиций</div>
+                    <div class="fs-5 fw-semibold {% if run.unmatched_rows %}text-danger{% endif %}">{{ run.unmatched_rows }}</div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if show_full_details %}
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card panel-card p-4 h-100">
+                    <h2 class="h6 fw-bold mb-3">Сведения об обработке</h2>
+                    <dl class="row mb-0 small">
+                        <dt class="col-sm-5 text-muted py-2">Пользователь</dt>
+                        <dd class="col-sm-7 py-2 mb-0">{{ run.user.username|default:"—" }}</dd>
+                        <dt class="col-sm-5 text-muted py-2">Валюта выгрузки</dt>
+                        <dd class="col-sm-7 py-2 mb-0">{{ run.source_currency|default:"—" }}</dd>
+                        <dt class="col-sm-5 text-muted py-2">Курс RUB за 1 CNY</dt>
+                        <dd class="col-sm-7 py-2 mb-0">{% if run.source_currency == 'RUB' and run.exchange_rate %}{{ run.exchange_rate|floatformat:4 }}{% else %}Без пересчёта{% endif %}</dd>
+                        {% if run.source_currency == 'RUB' %}
+                            <dt class="col-sm-5 text-muted py-2">Сумма исходной выгрузки</dt>
+                            <dd class="col-sm-7 py-2 mb-0">{{ run.source_amount|floatformat:2 }} RUB</dd>
+                        {% endif %}
+                        <dt class="col-sm-5 text-muted py-2">Всего позиций</dt>
+                        <dd class="col-sm-7 py-2 mb-0">{{ run.total_actual_rows }}</dd>
+                        <dt class="col-sm-5 text-muted py-2">Сумма сопоставленных фактов</dt>
+                        <dd class="col-sm-7 py-2 mb-0">{{ run.matched_amount_cny|floatformat:2 }} CNY</dd>
+                        <dt class="col-sm-5 text-muted py-2">Сумма несопоставленных фактов</dt>
+                        <dd class="col-sm-7 py-2 mb-0">{{ run.unmatched_amount_cny|floatformat:2 }} CNY</dd>
+                    </dl>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card panel-card p-4 h-100">
+                    <h2 class="h6 fw-bold mb-3">Файлы</h2>
+                    {% if run.source_files %}
+                        <div class="small text-muted mb-2">Использованные файлы</div>
+                        <ul class="small ps-3 mb-3">
+                            {% for filename in run.source_files %}<li>{{ filename }}</li>{% endfor %}
+                        </ul>
+                    {% endif %}
+                    <div class="d-grid gap-2">
+                        {% if run.final_file %}
+                            <a href="{% url 'download_processing_file' run.id 'final' %}" class="btn btn-brand btn-sm">Скачать итоговую таблицу</a>
+                        {% endif %}
+                        {% if run.unmatched_file %}
+                            <a href="{% url 'download_processing_file' run.id 'unmatched' %}" class="btn btn-outline-danger btn-sm">Скачать несопоставленные строки</a>
+                        {% elif run.status == 'success' %}
+                            <div class="small text-success">Все позиции сопоставлены.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if run.manager_reports %}
+            <div class="card panel-card p-4 mt-4">
+                <h2 class="h6 fw-bold mb-3">Файлы менеджеров</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for manager_key, report_path in run.manager_reports.items %}
+                        <a href="{% url 'download_processing_file' run.id 'manager' %}?manager={{ manager_key|urlencode }}" class="btn btn-sm btn-outline-secondary">{{ manager_key }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% elif has_manager_report %}
+        <div class="card panel-card p-4">
+            <h2 class="h6 fw-bold mb-2">Ваш файл</h2>
+            <p class="small text-muted">Исходная таблица с заполненными фактическими количествами.</p>
+            <a href="{% url 'download_processing_file' run.id 'manager' %}" class="btn btn-brand btn-sm">Скачать файл</a>
+        </div>
+    {% elif is_director %}
+        <div class="alert alert-light border">Исходные и итоговые файлы доступны только аналитику и администратору.</div>
+    {% endif %}
+</div>
+{% endblock %}
