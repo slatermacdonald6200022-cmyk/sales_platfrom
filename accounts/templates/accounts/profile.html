@@ -7,26 +7,22 @@
 
     <div class="card border-0 shadow-sm rounded-3 p-4 mx-auto bg-white" style="max-width: 560px;">
         
-        <div class="text-center my-3">
-            <div class="mx-auto mb-3" style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #134074, #0284c7); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700;">
-                {% if profile.avatar %}
-                    <img src="{{ profile.avatar.url }}" alt="avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
-                {% else %}
+        <div class="text-center mb-3">
+            {% if profile.avatar %}
+                <img src="{{ profile.avatar.url }}" alt="Avatar" class="rounded-circle shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
+            {% else %}
+                <div class="avatar-circle-lg mx-auto">
                     {{ initials }}
-                {% endif %}
-            </div>
-            <h5 class="fw-bold mb-1 text-dark">{{ full_name }}</h5>
-            <span class="badge bg-light text-muted border px-2 py-1 small">
-                {% if user.is_superuser %}Администратор системы{% else %}Менеджер{% endif %}
-            </span>
+                </div>
+            {% endif %}
         </div>
 
-        <div class="p-3 rounded-3 my-3 bg-light border">
-            <label class="form-label small fw-bold text-muted mb-2">Обновить фото профиля:</label>
-            <form method="post" enctype="multipart/form-data" class="d-flex gap-2">
+        <div class="card p-3 mb-4">
+            <label class="form-label text-muted small fw-bold mb-2">Обновить фото профиля:</label>
+            <form method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
                 {% csrf_token %}
                 <input type="file" name="avatar" class="form-control form-control-sm" accept="image/*" required>
-                <button type="submit" class="btn text-white btn-sm px-3" style="background-color: var(--brand-navy);">
+                <button type="submit" class="btn btn-dark btn-sm px-3 fw-semibold">
                     Загрузить
                 </button>
             </form>

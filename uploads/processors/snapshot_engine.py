@@ -208,30 +208,30 @@ def merge_plans_with_1c(plans_df: pd.DataFrame, actuals_1c_df: pd.DataFrame, exi
             how="left"
         )
     else:
-        if "Факт, шт" in merged.columns:
-            merged["_hist_qty"] = pd.to_numeric(merged["Факт, шт"], errors="coerce")
-        else:
-            merged["_hist_qty"] = np.nan
-
-        if "Факт, CNY" in merged.columns:
-            merged["_hist_cny"] = pd.to_numeric(merged["Факт, CNY"], errors="coerce")
-        else:
-            merged["_hist_cny"] = np.nan
+        # Факты из файлов менеджеров не являются источником факта.
+        # Если предыдущей витрины нет, история считается пустой.
+        merged["_hist_qty"] = np.nan
+        merged["_hist_cny"] = np.nan
 
     is_in_1c_period = merged["_key_month"].isin(months_in_current_1c)
 
-    # ФАКТ ШТ: если месяц пришел в 1С — берем строго из 1С, иначе сохраняем историю
+    current_qty = pd.to_numeric(merged["_1c_qty"], errors="coerce").fillna(0.0)
+    current_cny = pd.to_numeric(merged["_1c_cny"], errors="coerce").fillna(0.0)
+    historical_qty = pd.to_numeric(merged["_hist_qty"], errors="coerce").fillna(0.0)
+    historical_cny = pd.to_numeric(merged["_hist_cny"], errors="coerce").fillna(0.0)
+
+    # Обновляем только период, явно присутствующий в текущей выгрузке 1С.
+    # Все остальные месяцы переносятся из предыдущей витрины без изменений.
     merged["Факт, шт"] = np.where(
         is_in_1c_period,
-        pd.to_numeric(merged["_1c_qty"], errors="coerce").fillna(0.0),
-        pd.to_numeric(merged["_hist_qty"], errors="coerce").fillna(0.0)
+        current_qty,
+        historical_qty
     )
 
-    # ФАКТ CNY: если месяц пришел в 1С — берем готовую сумму из 1С, иначе сохраняем историю
     merged["Факт, CNY"] = np.where(
         is_in_1c_period,
-        pd.to_numeric(merged["_1c_cny"], errors="coerce").fillna(0.0),
-        pd.to_numeric(merged["_hist_cny"], errors="coerce").fillna(0.0)
+        current_cny,
+        historical_cny
     )
 
     # 8. Финальный порядок 15 колонок для DataLens

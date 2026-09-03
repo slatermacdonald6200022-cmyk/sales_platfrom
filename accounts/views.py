@@ -9,6 +9,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.conf import settings
 
+from django.contrib import messages
+
 DATA_DIR = Path(settings.BASE_DIR) / "data"
 FINAL_DIR = DATA_DIR / "processed" / "final"
 
@@ -87,9 +89,20 @@ def home_view(request):
 
 @login_required
 def profile_view(request):
-    """Личный кабинет пользователя."""
+    """
+    Личный кабинет пользователя с возможностью обновления фото профиля.
+    """
     user = request.user
     profile = getattr(user, 'profile', None)
+
+    # Обработка отправки формы загрузки аватарки
+    if request.method == 'POST':
+        if 'avatar' in request.FILES and profile:
+            profile.avatar = request.FILES['avatar']
+            profile.save()
+            messages.success(request, 'Фото профиля успешно обновлено!')
+            return redirect('profile')
+
     full_name = getattr(profile, 'manager_name', None) or user.get_full_name() or user.username
     parts = full_name.strip().split()
     initials = f"{parts[0][0]}{parts[1][0]}".upper() if len(parts) >= 2 else full_name[:2].upper()

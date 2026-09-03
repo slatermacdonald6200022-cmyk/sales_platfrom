@@ -1,6 +1,7 @@
 import os
 import re
 import pandas as pd
+from openpyxl import load_workbook
 
 
 def normalize_text(val):
@@ -16,6 +17,16 @@ def normalize_article(val):
     if s.endswith('.0'):
         s = s[:-2]
     return s.strip()
+
+
+def parse_number(val):
+    """Безопасно преобразует число из 1С с обычными и неразрывными пробелами."""
+    if pd.isna(val):
+        return 0.0
+    try:
+        return float(str(val).replace('\xa0', '').replace(' ', '').replace(',', '.'))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def normalize_1c_file(file_path):
@@ -51,11 +62,14 @@ def normalize_1c_file(file_path):
 
     header_row = df_raw.iloc[header_idx]
     col_client_item = 0
+    col_article = None
     col_qty = None
     col_cny = None
 
     for c in range(df_raw.shape[1]):
         val = str(header_row.iloc[c]).lower()
+        if 'артикул' in val:
+            col_article = c
         if 'количество' in val or 'кол-во' in val:
             if col_qty is None:
                 col_qty = c
@@ -68,42 +82,75 @@ def normalize_1c_file(file_path):
     if col_cny is None:
         col_cny = 4
 
+    # В отчёте 1С наименование товара, клиент, реализация и заказ находятся
+    # в одной колонке, но на разных уровнях иерархии. Настоящий артикул
+    # расположен в отдельной колонке «Артикул товара».
+    if col_article is None:
+        return pd.DataFrame()
+
+    workbook = load_workbook(file_path, read_only=False, data_only=True)
+    worksheet = workbook.active
+    has_outline_indents = any(
+        (worksheet.cell(row=i + 1, column=col_client_item + 1).alignment.indent or 0) >= 2
+        for i in range(header_idx + 1, min(len(df_raw), header_idx + 100))
+    )
+
     rows_data = df_raw.iloc[header_idx + 1:].copy()
     records = []
-    current_client = None
+    current_article = None
+    current_product = None
 
-    for _, row in rows_data.iterrows():
+    for row_idx, row in rows_data.iterrows():
         first_cell = normalize_text(row.iloc[col_client_item])
         if not first_cell or 'итого' in first_cell.lower():
             continue
 
-        try:
-            qty_val = float(str(row.iloc[col_qty]).replace(' ', '').replace(',', '.'))
-        except Exception:
-            qty_val = 0.0
-
-        try:
-            cny_val = float(str(row.iloc[col_cny]).replace(' ', '').replace(',', '.'))
-        except Exception:
-            cny_val = 0.0
-
-        # Определение строки клиента (без количества, длинный текст)
-        if pd.isna(row.iloc[col_qty]) or (qty_val == 0 and cny_val == 0 and len(first_cell) > 3):
-            current_client = first_cell
+        article = normalize_article(row.iloc[col_article])
+        if article:
+            current_article = article
+            current_product = first_cell
             continue
 
-        if current_client:
-            art = normalize_article(first_cell)
-            records.append({
-                'Клиент': current_client,
-                'Артикул': art,
-                'Наименование': first_cell,
-                'Год': period_year,
-                'Номер месяца': period_month,
-                'Месяц': f"{period_year}-{period_month:02d}",
-                'Факт, шт': qty_val,
-                'Факт, CNY': cny_val
-            })
+        if not current_article:
+            continue
+
+        indent = worksheet.cell(
+            row=int(row_idx) + 1,
+            column=col_client_item + 1
+        ).alignment.indent or 0
+
+        # Уровень 4 — клиент. Уровни 6 и 8 относятся к реализации и заказу,
+        # уровень 0 — итоговая группа товаров. Они не должны становиться фактами.
+        if has_outline_indents and not (4 <= indent < 6):
+            continue
+
+        # Запасная проверка для экспортов без сохранённых отступов Excel.
+        if not has_outline_indents:
+            low = first_cell.lower()
+            service_markers = (
+                'реализация', 'заказ клиента', 'отчет комиссионера',
+                'продажи без заказа', 'параметр'
+            )
+            if any(marker in low for marker in service_markers):
+                continue
+
+        qty_val = parse_number(row.iloc[col_qty])
+        cny_val = parse_number(row.iloc[col_cny])
+        if qty_val == 0 and cny_val == 0:
+            continue
+
+        records.append({
+            'Клиент': first_cell,
+            'Артикул': current_article,
+            'Наименование': current_product,
+            'Год': period_year,
+            'Номер месяца': period_month,
+            'Месяц': f"{period_year}-{period_month:02d}",
+            'Факт, шт': qty_val,
+            'Факт, CNY': cny_val
+        })
+
+    workbook.close()
 
     return pd.DataFrame(records)
 
