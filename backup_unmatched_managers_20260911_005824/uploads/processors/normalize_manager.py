@@ -297,7 +297,6 @@ def process_manager_sheet(df, filename="", default_manager=""):
             y_str, m_num = m_str.split('-')
             records.append({
                 '_Исходная строка': int(source_row) + 1,
-                '_Исходные клиенты': raw_client,
                 'AOP, шт': vals['aop'],
                 'Прогноз, шт': vals['forecast'],
                 'Факт, шт': vals['fact'],

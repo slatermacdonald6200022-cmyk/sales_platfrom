@@ -153,11 +153,7 @@
                         Период: {{ fact_1c.periods }}
                     </div>
                     <div class="mt-2">
-                        {% if fact_1c.source_currency == 'RUB' %}
-                            <span class="badge bg-warning text-dark">Рубли — пересчитать в юани</span>
-                        {% else %}
-                            <span class="badge bg-info text-dark">Юани — без пересчёта</span>
-                        {% endif %}
+                        <span class="badge bg-info text-dark">Количество × цена за период</span>
                     </div>
                 {% else %}
                     <div class="small text-muted mt-1">Файл за отчётный месяц не загружен.</div>
@@ -167,11 +163,7 @@
             <div class="col-lg-6">
                 <form method="post" enctype="multipart/form-data" class="m-0">
                     {% csrf_token %}
-                    <label for="sourceCurrency" class="form-label small fw-semibold mb-1">Валюта сумм</label>
-                    <select id="sourceCurrency" name="source_currency" class="form-select form-select-sm mb-2">
-                        <option value="RUB" {% if not fact_1c or fact_1c.source_currency == 'RUB' %}selected{% endif %}>Рубли — пересчитать в юани</option>
-                        <option value="CNY" {% if fact_1c.source_currency == 'CNY' %}selected{% endif %}>Юани — оставить без изменений</option>
-                    </select>
+                    <p class="small text-muted">Из выгрузки используется количество. Стоимость в юанях рассчитывается по цене таблицы за соответствующий период. Денежные суммы выгрузки не используются.</p>
                     <input type="file"
                            name="file_1c"
                            class="form-control form-control-sm"
@@ -179,11 +171,6 @@
                            title="Новый файл заменит текущий только после успешной проверки"
                            onchange="this.form.submit()">
                     <div class="form-text">Только .xlsx, до 25 МБ. Новый файл сначала проходит проверку.</div>
-                    {% if fact_1c %}
-                        <button type="submit" name="action" value="set_1c_currency" class="btn btn-outline-primary btn-sm w-100 mt-2">
-                            Сохранить режим обработки
-                        </button>
-                    {% endif %}
                 </form>
             </div>
         </div>

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 from openpyxl import load_workbook
+from .xlsx_cells import write_quantity_cells
 
 from .normalize_manager import (
     BASE_COLUMN_ALIASES,
@@ -11,6 +12,7 @@ from .normalize_manager import (
     normalize_text,
     parse_metric_type,
     parse_month_cell,
+    identify_base_columns,
 )
 
 
@@ -24,8 +26,8 @@ def clean_key(value):
     return result
 
 
-def build_fact_lookup(final_df):
-    """Возвращает факт в штуках по ключу клиент + артикул + месяц."""
+def build_fact_lookup(final_df, periods=None):
+    """Возвращает факт в штуках по ключу клиент + код товара (или артикул) + месяц."""
     if final_df is None or final_df.empty:
         return {}
 
@@ -34,21 +36,37 @@ def build_fact_lookup(final_df):
         missing = ', '.join(sorted(required - set(final_df.columns)))
         raise ValueError(f'В итоговой витрине отсутствуют колонки: {missing}')
 
-    facts = final_df[list(required)].copy()
+    extra = ['Менеджер', 'Класс товара', 'Производственный индекс']
+    optional = ['Код товара'] + extra
+    facts = final_df[list(required) + [col for col in optional if col in final_df]].copy()
+    for col in extra:
+        facts['_' + col] = facts[col].apply(clean_key) if col in facts else ''
     facts['_key_client'] = facts['Клиент'].apply(clean_key)
     facts['_key_article'] = facts['Артикул'].apply(clean_key)
+    facts['_key_code'] = facts['Код товара'].apply(clean_key) if 'Код товара' in facts else ''
+    facts['_key_product'] = facts['_key_article'].apply(lambda value: 'article:' + value)
+    if 'Код товара' in facts:
+        code_mask = facts['_key_code'] != ''
+        facts.loc[code_mask, '_key_product'] = 'code:' + facts.loc[code_mask, '_key_code']
     facts['_key_month'] = (
         pd.to_numeric(facts['Год'], errors='coerce').fillna(0).astype(int).astype(str)
         + '-'
         + pd.to_numeric(facts['Номер месяца'], errors='coerce').fillna(0).astype(int).apply(lambda x: f'{x:02d}')
     )
+    if periods is not None:
+        facts = facts[facts['_key_month'].isin(set(periods))].copy()
     facts['Факт, шт'] = pd.to_numeric(facts['Факт, шт'], errors='coerce').fillna(0.0)
 
     # Одинаковый факт может повторяться в нескольких строках плана.
     # Берём одно значение, а не суммируем его повторно.
-    facts = facts.drop_duplicates(subset=['_key_client', '_key_article', '_key_month'])
+    key_columns = ['_key_client', '_key_product', '_key_month'] + ['_' + col for col in extra]
+    duplicate = facts.duplicated(subset=key_columns, keep=False)
+    if (facts.loc[duplicate, 'Факт, шт'] != 0).any():
+        raise ValueError('Неоднозначный количественный факт: повторяется полный ключ строки.')
+    # Нулевые дубли можно обнулить в текущем месяце; ненулевые запрещены выше.
+    facts = facts.drop_duplicates(subset=key_columns)
     return {
-        (row['_key_client'], row['_key_article'], row['_key_month']): float(row['Факт, шт'])
+        tuple(row[col] for col in key_columns): float(row['Факт, шт'])
         for _, row in facts.iterrows()
     }
 
@@ -67,12 +85,9 @@ def find_sheet_layout(sheet):
     if header_idx is None or header_idx + 1 > sheet.max_row:
         return None
 
-    base_cols = {}
-    for col_idx in range(1, sheet.max_column + 1):
-        value = str(sheet.cell(header_idx, col_idx).value or '').lower()
-        for field, aliases in BASE_COLUMN_ALIASES.items():
-            if field not in base_cols and any(alias in value for alias in aliases):
-                base_cols[field] = col_idx
+    base_cols = {key: index + 1 for key, index in identify_base_columns(
+        [cell.value for cell in sheet[header_idx]]
+    ).items()}
 
     if 'product_article' not in base_cols or 'client' not in base_cols:
         return None
@@ -102,19 +117,21 @@ def find_sheet_layout(sheet):
         'header_row': header_idx,
         'client_col': base_cols['client'],
         'article_col': base_cols['product_article'],
+        'code_col': base_cols.get('product_code'),
+        'class_col': base_cols.get('product_class'),
+        'index_col': base_cols.get('production_index'),
         'fact_columns': fact_columns,
     }
 
 
-def update_manager_workbook(source_path, destination_path, fact_lookup, manager_id):
+def update_manager_workbook(source_path, destination_path, fact_lookup, manager_id, periods=None):
     """Создаёт копию книги менеджера и заполняет существующие колонки факта."""
     source_path = Path(source_path)
     destination_path = Path(destination_path)
     destination_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_path, destination_path)
-
-    workbook = load_workbook(destination_path, data_only=False, keep_links=True)
+    workbook = load_workbook(source_path, data_only=False, keep_links=True)
     updated_cells = 0
+    updates = {}
 
     try:
         for sheet_name in workbook.sheetnames:
@@ -137,29 +154,35 @@ def update_manager_workbook(source_path, destination_path, fact_lookup, manager_
                 client = 'Клиенты Ушакова (Пул)' if is_ushakov else current_client
                 client_key = clean_key(client)
                 article_key = clean_key(article)
+                code_key = clean_key(sheet.cell(row_idx, layout['code_col']).value) if layout['code_col'] else ''
+                product_key = 'code:' + code_key if code_key else 'article:' + article_key
 
                 for col_idx, month_key in layout['fact_columns']:
-                    lookup_key = (client_key, article_key, month_key)
+                    if periods is not None and month_key not in periods:
+                        continue
+                    class_value = clean_key(sheet.cell(row_idx, layout['class_col']).value) if layout['class_col'] else ''
+                    index_value = clean_key(sheet.cell(row_idx, layout['index_col']).value) if layout['index_col'] else ''
+                    lookup_key = (client_key, product_key, month_key,
+                                  clean_key(extract_manager_from_filename(source_path.name)), class_value, index_value)
                     if lookup_key not in fact_lookup:
                         continue
-                    sheet.cell(row_idx, col_idx).value = fact_lookup[lookup_key]
+                    updates.setdefault(sheet_name, {})[sheet.cell(row_idx, col_idx).coordinate] = fact_lookup[lookup_key]
                     updated_cells += 1
 
-        if hasattr(workbook, 'calculation'):
-            workbook.calculation.fullCalcOnLoad = True
-            workbook.calculation.forceFullCalc = True
-        workbook.save(destination_path)
+        write_quantity_cells(source_path, destination_path, updates)
     finally:
         workbook.close()
 
     return updated_cells
 
 
-def export_all_manager_fact_files(raw_dir, final_df, date_str):
+def export_all_manager_fact_files(raw_dir, final_df, date_str, periods=None):
     """Формирует персональный файл с фактами для каждого загруженного плана."""
     raw_path = Path(raw_dir)
     output_root = raw_path.parent / 'processed' / 'manager_reports' / date_str
-    fact_lookup = build_fact_lookup(final_df)
+    # В персональные книги записывается только месяц текущей выгрузки.
+    # Неоднозначно сохранённая история не должна блокировать этот этап.
+    fact_lookup = build_fact_lookup(final_df, periods=periods)
     results = {}
 
     for source_path in raw_path.iterdir():
@@ -179,6 +202,7 @@ def export_all_manager_fact_files(raw_dir, final_df, date_str):
             destination_path=destination_path,
             fact_lookup=fact_lookup,
             manager_id=manager_id,
+            periods=periods,
         )
         results[manager_id] = {
             'path': destination_path,
@@ -197,6 +221,8 @@ def get_latest_manager_report(base_dir, manager_id):
         return None
 
     for date_dir in sorted((path for path in base_path.iterdir() if path.is_dir()), reverse=True):
+        if not (base_path.parent / 'final' / date_dir.name / 'FINAL_SALES_FACT_TABLE.xlsx').is_file():
+            continue
         manager_dir = date_dir / manager_id
         if not manager_dir.exists():
             continue

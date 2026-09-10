@@ -21,10 +21,10 @@
                             <th class="px-3 py-3">Дата и время</th>
                             {% if show_full_details %}<th>Пользователь</th>{% endif %}
                             <th>Период</th>
-                            {% if show_full_details %}<th>Валюта</th>{% endif %}
+                            {% if show_full_details %}<th>Расчёт</th>{% endif %}
                             {% if show_full_details or is_director %}
                                 <th class="text-end">Сопоставлено</th>
-                                <th class="text-end">Не найдено</th>
+                                <th class="text-end">Требуют проверки</th>
                             {% endif %}
                             <th>Результат</th>
                             <th></th>
@@ -36,7 +36,7 @@
                                 <td class="px-3">{{ run.created_at|date:"d.m.Y H:i" }}</td>
                                 {% if show_full_details %}<td>{{ run.user.username|default:"—" }}</td>{% endif %}
                                 <td>{{ run.period_label }}</td>
-                                {% if show_full_details %}<td>{{ run.source_currency|default:"—" }}</td>{% endif %}
+                                {% if show_full_details %}<td>{% if run.source_currency == 'QTY' %}Количество × цена{% else %}{{ run.source_currency|default:"—" }}{% endif %}</td>{% endif %}
                                 {% if show_full_details or is_director %}
                                     <td class="text-end">{{ run.matched_rows }}</td>
                                     <td class="text-end {% if run.unmatched_rows %}text-danger fw-semibold{% endif %}">{{ run.unmatched_rows }}</td>

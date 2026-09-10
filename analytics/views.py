@@ -1,6 +1,7 @@
 import os
 import json
 import datetime
+import csv
 from pathlib import Path
 import pandas as pd
 from django.shortcuts import render, get_object_or_404
@@ -10,6 +11,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.urls import reverse
+from django.core.paginator import Paginator
 
 from accounts.permissions import (
     can_manage_files,
@@ -21,7 +23,9 @@ from accounts.permissions import (
 )
 
 from uploads.processors.snapshot_engine import create_full_snapshot
+from uploads.processors.matching import HistoryMappingError
 from uploads.processors.export_manager_facts import get_latest_manager_report
+from uploads.processors.combined_report import combined_is_current
 from uploads.views import (
     MANAGERS_LIST,
     get_user_manager,
@@ -56,6 +60,22 @@ def get_latest_final_file():
         return None
     final_files = sorted(list(FINAL_DIR.glob("**/FINAL_SALES_FACT_TABLE.xlsx")), reverse=True)
     return final_files[0] if final_files else None
+
+
+def get_current_combined_file():
+    final = get_latest_final_file()
+    path = final.with_name('COMBINED_MANAGER_FACTS.xlsx') if final else None
+    return path if path and combined_is_current(path, RAW_DIR) else None
+
+
+@login_required
+def download_combined_excel(request):
+    if not can_view_final_dataset(request.user):
+        raise PermissionDenied('Общий файл доступен аналитику и администратору.')
+    path = get_current_combined_file()
+    if not path:
+        raise Http404('Общий файл не сформирован или исходные файлы изменились. Повторите обработку.')
+    return FileResponse(path.open('rb'), as_attachment=True, filename='Общий_план_с_фактом.xlsx')
 
 
 def get_missing_files():
@@ -139,6 +159,7 @@ def processing_page_view(request):
         'has_1c': has_1c,
         'all_files_ready': all_files_ready,
         'manager_reports': get_user_manager_reports(user),
+        'combined_available': can_view_final and bool(get_current_combined_file()),
     }
     return render(request, 'analytics/processing.html', context)
 
@@ -223,11 +244,16 @@ def run_etl_api(request):
 
         return JsonResponse({
             'status': 'success',
-            'message': 'Обработка завершена. Итоговый файл и файлы менеджеров готовы.',
+            'message': ('Обработка завершена. Итоговый файл и файлы менеджеров готовы.'
+                        + (f" Исторические факты сохранены без перераспределения: {processing_info.get('history_conflict_rows', 0)} позиций. Проверьте отчёт несопоставленных строк."
+                           if processing_info.get('history_conflict_rows') else '')
+                        + (f" Не рассчитана стоимость факта без цены: {processing_info.get('missing_price_rows', 0)} строк. Количество сохранено."
+                           if processing_info.get('missing_price_rows') else '')),
             'columns': columns,
             'preview_rows': preview_rows,
             'total_rows': len(final_df),
             'manager_reports': get_user_manager_reports(request.user),
+            'combined_available': bool(get_current_combined_file()),
             'history_url': reverse('processing_run_detail', args=[processing_run.pk]),
         })
 
@@ -235,8 +261,48 @@ def run_etl_api(request):
         processing_run.status = ProcessingRun.STATUS_FAILED
         processing_run.finished_at = timezone.now()
         processing_run.error_message = str(e)
-        processing_run.save(update_fields=['status', 'finished_at', 'error_message'])
-        return JsonResponse({'status': 'error', 'message': f'Не удалось завершить обработку: {str(e)}'}, status=500)
+        if isinstance(e, HistoryMappingError):
+            diagnostic_path = Path(settings.BASE_DIR) / 'data' / 'processed' / 'diagnostics' / str(processing_run.pk) / 'history_conflicts.json'
+            try:
+                diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
+                diagnostic_path.write_text(json.dumps({'kind': 'history_mapping', 'conflicts': e.conflicts}, ensure_ascii=False), encoding='utf-8')
+                processing_run.unmatched_file = _stored_path(diagnostic_path)
+            except OSError:
+                processing_run.error_message += ' Не удалось сохранить подробный список на диске.'
+        processing_run.save(update_fields=['status', 'finished_at', 'error_message', 'unmatched_file'])
+        return JsonResponse({'status': 'error', 'message': processing_run.error_message,
+                             'history_url': reverse('processing_run_detail', args=[processing_run.pk])},
+                            status=422 if isinstance(e, HistoryMappingError) else 500)
+
+
+def _history_conflicts(processing_run):
+    if processing_run.status != ProcessingRun.STATUS_FAILED or not processing_run.unmatched_file.endswith('history_conflicts.json'):
+        return None
+    try:
+        payload = json.loads(_resolve_stored_path(processing_run.unmatched_file).read_text(encoding='utf-8'))
+        return payload['conflicts'] if payload.get('kind') == 'history_mapping' else None
+    except (OSError, ValueError, KeyError, Http404):
+        return None
+
+
+def _conflicts_csv(conflicts):
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="history_conflicts.csv"'
+    response.write('\ufeff')
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['Клиент', 'Артикул', 'Код товара', 'Период', 'Исторический факт, шт', 'Исторический факт, CNY',
+                     'Класс в истории', 'Индекс в истории', 'Причина', 'Что проверить',
+                     'Менеджер в плане', 'Класс в плане', 'Индекс в плане', 'Исходный файл', 'Лист', 'Строка'])
+    def safe(value):
+        # Клиентские названия и артикулы не должны исполняться как формулы Excel.
+        return "'" + value if isinstance(value, str) and value.lstrip().startswith(('=', '+', '-', '@')) else value
+    for item in conflicts:
+        for candidate in item['candidates'] or [{}]:
+            writer.writerow([safe(value) for value in [item['client'], item['article'], item.get('product_code', ''), item['period'],
+                item['quantity'], item['amount'], item['product_class'], item['production_index'], item['reason'],
+                item['hint'], candidate.get('manager', ''), candidate.get('product_class', ''), candidate.get('production_index', ''),
+                candidate.get('source_file', ''), candidate.get('source_sheet', ''), candidate.get('source_row', '')]])
+    return response
 
 
 def _manager_id_for_user(user):
@@ -285,12 +351,15 @@ def processing_run_detail(request, run_id):
 
     role = get_user_role(request.user)
     manager_id = _manager_id_for_user(request.user) if role == ROLE_MANAGER else None
+    conflicts = _history_conflicts(processing_run) if can_view_final_dataset(request.user) else None
+    conflict_page = Paginator(conflicts, 50).get_page(request.GET.get('page')) if conflicts is not None else None
     return render(request, 'analytics/processing_run_detail.html', {
         'run': processing_run,
         'show_full_details': can_view_final_dataset(request.user),
         'is_director': role == ROLE_DIRECTOR,
         'manager_id': manager_id,
         'has_manager_report': bool(manager_id and manager_id in processing_run.manager_reports),
+        'conflict_page': conflict_page,
     })
 
 
@@ -315,6 +384,11 @@ def download_processing_file(request, run_id, file_kind):
         raise PermissionDenied('Файл недоступен для этой роли.')
 
     file_path = _resolve_stored_path(stored_path)
+    if file_kind == 'unmatched' and file_path.name == 'history_conflicts.json':
+        conflicts = _history_conflicts(processing_run)
+        if conflicts is None:
+            raise Http404('Подробный список недоступен.')
+        return _conflicts_csv(conflicts)
     return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=file_path.name)
 
 

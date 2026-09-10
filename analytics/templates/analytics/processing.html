@@ -92,6 +92,12 @@
                 </div>
             {% endfor %}
         </div>
+        {% if can_view_final %}
+        <div id="combinedReport" class="mt-3" {% if not combined_available %}hidden{% endif %}>
+            <a class="btn btn-success" href="{% url 'download_combined_excel' %}">Скачать общий файл менеджеров с фактом</a>
+            <p class="text-muted small mt-2 mb-0">Все товарные строки в одной таблице, месяцы в столбцах. Без служебных листов и годовых итогов исходных книг.</p>
+        </div>
+        {% endif %}
     </div>
 
     {% if can_view_final %}
@@ -284,6 +290,8 @@
                     reportLinks.appendChild(column);
                 });
                 reportsContainer.style.display = body.manager_reports && body.manager_reports.length ? '' : 'none';
+                const combined = document.getElementById('combinedReport');
+                if (combined) combined.hidden = !body.combined_available;
 
             } else {
                 progressBar.style.width = '100%';
@@ -292,7 +300,14 @@
                 stageText.innerText = 'Процесс остановлен';
 
                 statusAlert.className = 'alert alert-danger py-2 mt-3 small border-0';
-                statusAlert.innerHTML = `<strong>Ошибка:</strong> ${body.message || 'Не удалось завершить обработку'}`;
+                statusAlert.textContent = 'Ошибка: ' + (body.message || 'Не удалось завершить обработку');
+                if (body.history_url) {
+                    const details = document.createElement('a');
+                    details.href = body.history_url;
+                    details.className = 'btn btn-outline-danger btn-sm d-block mt-2';
+                    details.textContent = 'Посмотреть, что мешает обработке';
+                    statusAlert.appendChild(details);
+                }
                 statusAlert.style.display = 'block';
             }
             btnRun.disabled = false;

@@ -13,6 +13,7 @@ from .processors.normalize_manager import (
     BASE_COLUMN_ALIASES,
     parse_metric_type,
     parse_month_cell,
+    identify_base_columns,
 )
 
 
@@ -128,12 +129,7 @@ def _find_manager_layout(sheet):
 
         main_header = row
         sub_header = scan_rows[row_index + 1] if row_index + 1 < len(scan_rows) else ()
-        base_columns = {}
-        for column_index, value in enumerate(main_header):
-            normalized_value = _normalized(value)
-            for field_name, aliases in BASE_COLUMN_ALIASES.items():
-                if field_name not in base_columns and any(alias in normalized_value for alias in aliases):
-                    base_columns[field_name] = column_index
+        base_columns = identify_base_columns(main_header)
 
         periods = set()
         metrics = set()
@@ -237,9 +233,15 @@ def validate_manager_file(uploaded_file):
 
 
 def _find_actual_period(rows):
+    lines = [
+        ' '.join(str(value) for value in row if value is not None)
+        for row in rows[:15]
+    ]
+    period_lines = [line for line in lines if 'период' in line.lower()]
     dates = []
-    for row in rows[:15]:
-        line = ' '.join(str(value) for value in row if value is not None)
+    # Номера заказов в первых строках могут содержать даты других месяцев.
+    # При наличии строки «Период» только она определяет месяц выгрузки.
+    for line in period_lines or lines[:10]:
         for day, month, year in re.findall(r'(\d{2})\.(\d{2})\.(\d{4})', line):
             try:
                 dates.append(datetime.date(int(year), int(month), int(day)))
@@ -271,24 +273,30 @@ def validate_actual_file(uploaded_file):
         header_index = None
         found_fields = set()
         for index, row in enumerate(header_rows):
-            values = [_normalized(value) for value in row]
+            # В новых отчётах 1С заголовок занимает три строки:
+            # «Клиент», затем «Заказ клиента», затем товарные поля.
+            window = header_rows[index:index + 3]
             fields = set()
-            if any('номенклатур' in value or 'клиент' in value or 'контрагент' in value for value in values):
-                fields.add('entity')
-            if any('артикул' in value for value in values):
-                fields.add('article')
-            if any('количество' in value or 'кол-во' in value for value in values):
-                fields.add('quantity')
-            if any('выручка' in value or 'сумма' in value for value in values):
-                fields.add('amount')
-            if {'entity', 'article', 'quantity', 'amount'}.issubset(fields):
-                header_index = index + 1
-                found_fields = fields
+            for offset, window_row in enumerate(window):
+                values = [_normalized(value) for value in window_row]
+                if any('номенклатур' in value or 'клиент' in value or 'контрагент' in value for value in values):
+                    fields.add('entity')
+                if any('артикул' in value for value in values):
+                    fields.add('article')
+                if any('количество' in value or 'кол-во' in value for value in values):
+                    fields.add('quantity')
+                if any('выручка' in value or 'сумма' in value for value in values):
+                    fields.add('amount')
+                if {'entity', 'article', 'quantity'}.issubset(fields):
+                    header_index = index + offset + 1
+                    found_fields = fields
+                    break
+            if header_index is not None:
                 break
 
-        if header_index is None or len(found_fields) < 4:
+        if header_index is None or len(found_fields) < 3:
             raise ExcelValidationError(
-                'Не найдены обязательные столбцы: номенклатура, артикул, количество и выручка.'
+                'Не найдены обязательные столбцы: номенклатура, артикул и количество.'
             )
         if sheet.max_row <= header_index:
             raise ExcelValidationError('В файле нет строк с фактическими данными.')

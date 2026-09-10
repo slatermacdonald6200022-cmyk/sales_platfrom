@@ -48,26 +48,6 @@ MANAGER_IDENTITY_TOKENS = {
 }
 
 
-def load_fact_1c_settings(upload_dir):
-    """Читает сохранённую валюту текущей выгрузки 1С."""
-    settings_path = os.path.join(upload_dir, FACT_1C_SETTINGS_FILENAME)
-    try:
-        with open(settings_path, 'r', encoding='utf-8') as settings_file:
-            settings_data = json.load(settings_file)
-    except (OSError, ValueError, TypeError):
-        settings_data = {}
-
-    source_currency = str(settings_data.get('source_currency', 'RUB')).upper()
-    if source_currency not in {'RUB', 'CNY'}:
-        source_currency = 'RUB'
-    return {'source_currency': source_currency}
-
-
-def save_fact_1c_settings(upload_dir, source_currency):
-    """Сохраняет валюту вместе с текущей выгрузкой 1С."""
-    settings_path = os.path.join(upload_dir, FACT_1C_SETTINGS_FILENAME)
-    with open(settings_path, 'w', encoding='utf-8') as settings_file:
-        json.dump({'source_currency': source_currency}, settings_file, ensure_ascii=False)
 
 
 def check_is_admin(user):
@@ -161,7 +141,6 @@ def scan_raw_directory(upload_dir):
         return {}, None
 
     files = os.listdir(upload_dir)
-    fact_1c_settings = load_fact_1c_settings(upload_dir)
     manager_files = {}
     fact_1c_info = None
 
@@ -182,7 +161,6 @@ def scan_raw_directory(upload_dir):
                 fact_1c_info = {
                     'stored_filename': fname,
                     'display_name': orig_name,
-                    'source_currency': fact_1c_settings['source_currency'],
                     **info
                 }
             continue
@@ -266,10 +244,6 @@ def upload_view(request):
         # 1. Загрузка 1С (Админ)
         if is_admin and 'file_1c' in request.FILES:
             f_1c = request.FILES['file_1c']
-            source_currency = str(request.POST.get('source_currency', 'RUB')).upper()
-            if source_currency not in {'RUB', 'CNY'}:
-                messages.error(request, 'Выберите валюту выгрузки: рубли или юани.')
-                return redirect('upload_files')
 
             try:
                 validation = validate_actual_file(f_1c)
@@ -292,35 +266,14 @@ def upload_view(request):
                     except OSError:
                         pass
             cache_validation_result(os.path.basename(dest_path), validation)
-            save_fact_1c_settings(upload_dir, source_currency)
-            currency_label = 'рубли — пересчитать по курсу ЦБ' if source_currency == 'RUB' else 'юани — без пересчёта'
             messages.success(
                 request,
-                f'Файл «{f_1c.name}» загружен. Период: {validation.period_label}. Валюта: {currency_label}.',
+                f'Файл «{f_1c.name}» загружен. Период: {validation.period_label}. Используется количество; стоимость рассчитывается по цене плана.',
             )
             for warning in validation.warnings:
                 messages.warning(request, warning)
             return redirect('upload_files')
 
-        # Изменение валюты уже загруженной выгрузки без повторной загрузки файла
-        if is_admin and request.POST.get('action') == 'set_1c_currency':
-            source_currency = str(request.POST.get('source_currency', '')).upper()
-            if source_currency not in {'RUB', 'CNY'}:
-                messages.error(request, 'Выберите валюту выгрузки: рубли или юани.')
-                return redirect('upload_files')
-
-            has_fact_1c = any(
-                fname.startswith('fact_1c_') and fname.lower().endswith(('.xlsx', '.xls'))
-                for fname in os.listdir(upload_dir)
-            )
-            if not has_fact_1c:
-                messages.error(request, 'Сначала загрузите файл с фактическими данными.')
-                return redirect('upload_files')
-
-            save_fact_1c_settings(upload_dir, source_currency)
-            currency_label = 'рубли — пересчитать по курсу ЦБ' if source_currency == 'RUB' else 'юани — без пересчёта'
-            messages.success(request, f'Режим обработки изменён: {currency_label}.')
-            return redirect('upload_files')
 
         # 2. Загрузка планов менеджеров
         for mgr in MANAGERS_LIST:

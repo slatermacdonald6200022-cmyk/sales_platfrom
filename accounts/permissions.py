@@ -31,7 +31,7 @@ def can_manage_files(user):
 
 def can_view_company_dashboard(user):
     """Просмотр показателей по всей компании."""
-    return get_user_role(user) in {ROLE_ADMIN, ROLE_ANALYST, ROLE_DIRECTOR}
+    return get_user_role(user) in {ROLE_ADMIN, ROLE_ANALYST, ROLE_DIRECTOR, ROLE_MANAGER}
 
 
 def can_view_final_dataset(user):

@@ -243,8 +243,6 @@ class PeriodScopedMergeTests(SimpleTestCase):
             },
         ])
 
-        plans['Факт, шт'] = [4, 6]
-        plans['Факт, CNY'] = [40, 60]
         result = merge_plans_with_1c(plans, actuals, history)
         may = result[result['Номер месяца'] == 5].iloc[0]
         june = result[result['Номер месяца'] == 6].iloc[0]

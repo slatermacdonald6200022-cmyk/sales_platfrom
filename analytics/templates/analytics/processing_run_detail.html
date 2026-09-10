@@ -19,6 +19,36 @@
         </div>
     {% endif %}
 
+    {% if conflict_page %}
+    <section class="card panel-card p-4 mb-4">
+        <div class="d-flex justify-content-between gap-3 flex-wrap mb-3">
+            <h2 class="h5">Что мешает переносу истории: {{ conflict_page.paginator.count }} позиций</h2>
+            <a class="btn btn-outline-primary btn-sm" href="{% url 'download_processing_file' run.id 'unmatched' %}">Скачать полный список CSV</a>
+        </div>
+        <p class="text-muted small">Это факты из предыдущего результата за другие месяцы, а не позиции текущей выгрузки. Они не удалены и не распределены между строками автоматически.</p>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Период</th><th>Клиент / артикул</th><th>Исторический факт</th><th>Что мешает</th><th>Строки нового плана</th></tr></thead>
+            <tbody>{% for item in conflict_page %}<tr>
+                <td class="text-nowrap">{{ item.period }}</td>
+                <td>{{ item.client }}<br><strong>{{ item.article }}</strong><br><small>Код товара: {{ item.product_code|default:'не указан' }}<br>Класс: {{ item.product_class|default:'не указан' }}<br>Индекс: {{ item.production_index|default:'не указан' }}</small></td>
+                <td class="text-nowrap">{{ item.quantity }} шт<br>{{ item.amount }} CNY</td>
+                <td><strong>{{ item.reason }}</strong><br><small>{{ item.hint }}</small>
+                    {% if not item.candidates and item.available_periods %}<br><small>Периоды в плане: {{ item.available_periods|join:', ' }}</small>{% endif %}</td>
+                <td>{% for candidate in item.candidates %}<div class="mb-2">{{ candidate.manager }}<br><small>Код: {{ candidate.product_code|default:'не указан' }} · Класс: {{ candidate.product_class|default:'не указан' }} · Индекс: {{ candidate.production_index|default:'не указан' }}</small>
+                    {% if candidate.source_file %}<br><small>{{ candidate.source_file }} · лист «{{ candidate.source_sheet }}», строка {{ candidate.source_row }}</small>{% endif %}
+                </div>{% empty %}<span class="text-muted">Нет строки клиента и товара за этот месяц</span>{% endfor %}</td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        <nav class="d-flex gap-3 align-items-center" aria-label="Страницы препятствий">
+            {% if conflict_page.has_previous %}<a href="?page={{ conflict_page.previous_page_number }}">← Назад</a>{% endif %}
+            <span>{{ conflict_page.number }} / {{ conflict_page.paginator.num_pages }}</span>
+            {% if conflict_page.has_next %}<a href="?page={{ conflict_page.next_page_number }}">Далее →</a>{% endif %}
+        </nav>
+    </section>
+    {% elif run.status == 'failed' and show_full_details %}
+        <p class="text-muted">Если это сообщение о переносе истории из прежней версии программы, повторите обработку: для старой записи подробный список не сохранялся.</p>
+    {% endif %}
+
     <div class="row g-3 mb-4">
         <div class="col-md-3">
             <div class="card panel-card p-3 h-100">
@@ -32,7 +62,7 @@
                 <div class="fw-semibold">{{ run.period_label }}</div>
             </div>
         </div>
-        {% if show_full_details or is_director %}
+        {% if run.status == 'success' and show_full_details or run.status == 'success' and is_director %}
             <div class="col-md-3">
                 <div class="card panel-card p-3 h-100">
                     <div class="small text-muted mb-1">Сопоставлено позиций</div>
@@ -41,7 +71,7 @@
             </div>
             <div class="col-md-3">
                 <div class="card panel-card p-3 h-100">
-                    <div class="small text-muted mb-1">Не найдено позиций</div>
+                    <div class="small text-muted mb-1">Требуют проверки</div>
                     <div class="fs-5 fw-semibold {% if run.unmatched_rows %}text-danger{% endif %}">{{ run.unmatched_rows }}</div>
                 </div>
             </div>
@@ -56,6 +86,10 @@
                     <dl class="row mb-0 small">
                         <dt class="col-sm-5 text-muted py-2">Пользователь</dt>
                         <dd class="col-sm-7 py-2 mb-0">{{ run.user.username|default:"—" }}</dd>
+                        {% if run.source_currency == 'QTY' %}
+                        <dt class="col-sm-5 text-muted py-2">Расчёт факта</dt>
+                        <dd class="col-sm-7 py-2 mb-0">Количество × цена в юанях за период. Без курса валют.</dd>
+                        {% else %}
                         <dt class="col-sm-5 text-muted py-2">Валюта выгрузки</dt>
                         <dd class="col-sm-7 py-2 mb-0">{{ run.source_currency|default:"—" }}</dd>
                         <dt class="col-sm-5 text-muted py-2">Курс RUB за 1 CNY</dt>
@@ -64,12 +98,15 @@
                             <dt class="col-sm-5 text-muted py-2">Сумма исходной выгрузки</dt>
                             <dd class="col-sm-7 py-2 mb-0">{{ run.source_amount|floatformat:2 }} RUB</dd>
                         {% endif %}
+                        {% endif %}
+                        {% if run.status == 'success' %}
                         <dt class="col-sm-5 text-muted py-2">Всего позиций</dt>
                         <dd class="col-sm-7 py-2 mb-0">{{ run.total_actual_rows }}</dd>
                         <dt class="col-sm-5 text-muted py-2">Сумма сопоставленных фактов</dt>
                         <dd class="col-sm-7 py-2 mb-0">{{ run.matched_amount_cny|floatformat:2 }} CNY</dd>
                         <dt class="col-sm-5 text-muted py-2">Сумма несопоставленных фактов</dt>
-                        <dd class="col-sm-7 py-2 mb-0">{{ run.unmatched_amount_cny|floatformat:2 }} CNY</dd>
+                        <dd class="col-sm-7 py-2 mb-0">{% if run.source_currency == 'QTY' %}Не рассчитана: нет однозначной строки с ценой{% else %}{{ run.unmatched_amount_cny|floatformat:2 }} CNY{% endif %}</dd>
+                        {% endif %}
                     </dl>
                 </div>
             </div>
@@ -87,7 +124,7 @@
                             <a href="{% url 'download_processing_file' run.id 'final' %}" class="btn btn-brand btn-sm">Скачать итоговую таблицу</a>
                         {% endif %}
                         {% if run.unmatched_file %}
-                            <a href="{% url 'download_processing_file' run.id 'unmatched' %}" class="btn btn-outline-danger btn-sm">Скачать несопоставленные строки</a>
+                            <a href="{% url 'download_processing_file' run.id 'unmatched' %}" class="btn btn-outline-danger btn-sm">{% if conflict_page %}Скачать список препятствий CSV{% else %}Скачать строки для проверки{% endif %}</a>
                         {% elif run.status == 'success' %}
                             <div class="small text-success">Все позиции сопоставлены.</div>
                         {% endif %}

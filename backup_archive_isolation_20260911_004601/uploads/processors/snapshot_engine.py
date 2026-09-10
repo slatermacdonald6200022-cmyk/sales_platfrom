@@ -167,11 +167,23 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     snap_file = snap_dir / "plans_snapshot.xlsx"
     print(f"✅ Срез планов сохранен: {snap_file} ({len(plans_df):,} строк)")
 
-    # Archive snapshots are comparison-only, never an input to a new run.
+    # 2. Поиск накопленной истории фактов
+    existing_facts = pd.DataFrame()
+    known_fact_periods = set()
     final_dir_base = processed_root / 'final'
-    source_periods = parse_period_key(plans_df)
-    source_qty = pd.to_numeric(plans_df.get('Факт, шт', pd.Series(0.0, index=plans_df.index)), errors='coerce').fillna(0)
-    known_fact_periods = set(source_periods[source_qty != 0])
+    if final_dir_base.exists():
+        existing_final_files = sorted(list(final_dir_base.glob("**/FINAL_SALES_FACT_TABLE.xlsx")), reverse=True)
+        if existing_final_files:
+            latest_file = existing_final_files[0]
+            print(f"📚 Загрузка накопленной истории фактов из: {latest_file}")
+            existing_facts = extract_existing_facts(latest_file)
+            try:
+                previous_metadata = json.loads(latest_file.with_name('processing_metadata.json').read_text(encoding='utf-8'))
+                known_fact_periods.update(previous_metadata.get('fact_periods', []))
+                if previous_metadata.get('report_period'):
+                    known_fact_periods.add(previous_metadata['report_period'])
+            except (OSError, ValueError):
+                pass
 
     # 3. Поиск и парсинг выгрузок 1С
     # В выгрузке используется только количество; оценка по цене плана.
@@ -209,7 +221,7 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     report_year, report_month = (int(part) for part in report_period.split('-'))
 
     # 4. Слияние (строгий LEFT JOIN по ключу YYYY-MM)
-    final_df = merge_plans_with_1c(plans_df, all_actuals)
+    final_df = merge_plans_with_1c(plans_df, all_actuals, existing_facts)
 
     final_dir = final_dir_base / date_str
     final_dir.mkdir(parents=True, exist_ok=True)

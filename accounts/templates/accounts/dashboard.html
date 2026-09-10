@@ -1,374 +1,104 @@
 {% extends "accounts/base.html" %}
-
-{% block title %}Отчёты | Планирование продаж{% endblock %}
-
+{% block title %}{% if is_deviations_page %}Отклонения от плана{% else %}Отчёты{% endif %} | Планирование продаж{% endblock %}
 {% block content %}
 <div class="container-fluid page-shell">
-
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">Отчёты</h1>
-            <p class="page-description">План, прогноз и фактические продажи.</p>
-        </div>
-        <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Главная</a>
-    </div>
-
-    <!-- Панель селекторов фильтрации -->
-    <div class="card panel-card p-3 mb-4">
-        <form id="filterForm" method="get" action="{% url 'dashboard' %}">
-            <div class="row g-2 align-items-end">
-
-                <!-- 1. Менеджер -->
-                <div class="col-md-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-bold text-muted mb-0">Менеджер</label>
-                        {% if is_admin and selected_manager %}
-                            <a href="javascript:void(0)" onclick="clearSingleFilter('manager')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
-                        {% endif %}
-                    </div>
-                    {% if is_admin %}
-                        <select id="select_manager" name="manager" class="form-select form-select-sm" onchange="document.getElementById('select_client').value=''; document.getElementById('select_article').value=''; this.form.submit();">
-                            <option value="">Все менеджеры</option>
-                            {% for m in managers_list %}
-                                <option value="{{ m }}" {% if selected_manager == m %}selected{% endif %}>{{ m }}</option>
-                            {% endfor %}
-                        </select>
-                    {% else %}
-                        <select id="select_manager" class="form-select form-select-sm" disabled>
-                            <option value="{{ selected_manager }}" selected>{{ selected_manager }}</option>
-                        </select>
-                        <input type="hidden" id="hidden_manager" name="manager" value="{{ selected_manager }}">
-                    {% endif %}
-                </div>
-
-                <!-- 2. Клиент -->
-                <div class="col-md-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-bold text-muted mb-0">Клиент</label>
-                        {% if selected_client %}
-                            <a href="javascript:void(0)" onclick="clearSingleFilter('client')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
-                        {% endif %}
-                    </div>
-                    <select id="select_client" name="client" class="form-select form-select-sm" onchange="document.getElementById('select_article').value=''; this.form.submit();">
-                        <option value="">Все клиенты</option>
-                        {% for c in clients_list %}
-                            <option value="{{ c }}" {% if selected_client == c %}selected{% endif %}>{{ c }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- 3. Товар / Номенклатура -->
-                <div class="col-md-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-bold text-muted mb-0">Наименование</label>
-                        {% if selected_article %}
-                            <a href="javascript:void(0)" onclick="clearSingleFilter('article')" class="text-danger small text-decoration-none" title="Очистить фильтр" style="font-size: 0.75rem;">✕ Очистить</a>
-                        {% endif %}
-                    </div>
-                    <select id="select_article" name="article" class="form-select form-select-sm" onchange="this.form.submit();">
-                        <option value="">Вся номенклатура</option>
-                        {% for art in articles_list %}
-                            <option value="{{ art }}" {% if selected_article == art %}selected{% endif %}>{{ art }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- 4. Период -->
-                <div class="col-md-2">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-bold text-muted mb-0">Период</label>
-                        {% if selected_period != 'reporting_period' %}
-                            <a href="javascript:void(0)" onclick="clearPeriodFilter()" class="text-danger small text-decoration-none" title="Сбросить период" style="font-size: 0.75rem;">✕ Сброс</a>
-                        {% endif %}
-                    </div>
-                    <select id="select_period" name="period" class="form-select form-select-sm" onchange="this.form.submit();">
-                        {% for p_val, p_name in periods_options %}
-                            <option value="{{ p_val }}" {% if selected_period == p_val %}selected{% endif %}>{{ p_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- 5. Кнопка сброса всех фильтров -->
-                <div class="col-md-1">
-                    {% if filters_active %}
-                        <a href="javascript:void(0)" onclick="resetAllFilters()" class="btn btn-outline-danger btn-sm w-100 py-1" style="font-size: 0.8rem;">
-                            Сбросить
-                        </a>
-                    {% else %}
-                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 py-1 text-muted" disabled style="font-size: 0.8rem; opacity: 0.5;">
-                            Сбросить
-                        </button>
-                    {% endif %}
-                </div>
-
-            </div>
-        </form>
-    </div>
-
-    <!-- Показатели по менеджерам и итоговые значения -->
-    <div class="row g-4 mb-4">
-
-        <!-- График по менеджерам -->
-        <div class="col-lg-4">
-            <div class="card panel-card p-3 h-100 d-flex flex-column">
-                <div class="small fw-bold text-muted mb-2">Показатели по менеджерам</div>
-                <div class="flex-grow-1" style="min-height: 420px; position: relative;">
-                    <canvas id="dynamicManagersChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Справа: 3 Группы KPI показателей -->
-        <div class="col-lg-8">
-            <div class="d-flex flex-column gap-3 h-100 justify-content-between">
-
-                <!-- 1. Месячные показатели -->
-                <div>
-                    <h6 class="fw-bold mb-2 text-dark">Выбранный месяц</h6>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Годовой план (AOP), юани</div>
-                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_aop }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Прогноз, юани</div>
-                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_forecast }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Факт, юани</div>
-                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.month_fact }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. Годовые показатели -->
-                <div>
-                    <h6 class="fw-bold mb-2 text-dark">С начала года</h6>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Годовой план (AOP), юани</div>
-                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.ytd_aop }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Прогноз на год, юани</div>
-                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.full_year_forecast }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
-                                <div class="text-muted small mb-1">Факт, юани</div>
-                                <div class="fs-4 fw-bold" style="color: #0284c7;">{{ kpi.ytd_fact }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. Процентные показатели -->
-                <div>
-                    <h6 class="fw-bold mb-2 text-dark">Выполнение</h6>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_month_aop }} !important;">
-                                <div class="text-muted small mb-1">План за месяц</div>
-                                <div class="fs-4 fw-bold" style="color: {{ kpi.color_month_aop }};">{{ kpi.pct_month_aop }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_ytd_aop }} !important;">
-                                <div class="text-muted small mb-1">План с начала года</div>
-                                <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_aop }};">{{ kpi.pct_ytd_aop }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3" style="border-left: 4px solid {{ kpi.color_ytd_forecast }} !important;">
-                                <div class="text-muted small mb-1">Прогноз с начала года</div>
-                                <div class="fs-4 fw-bold" style="color: {{ kpi.color_ytd_forecast }};">{{ kpi.pct_ytd_forecast }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-    </div>
-
-    <!-- График по месяцам -->
-    <div class="row g-4">
-        <div class="col-12">
-            <div class="card panel-card p-4">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="small fw-bold text-muted">Показатели по месяцам за {{ target_year }} год</div>
-                </div>
-                <div style="height: 300px; position: relative;">
-                    <canvas id="staticMonthsChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<!-- Инициализация Chart.js и вспомогательных функций -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="page-header"><div><h1 class="page-title">{% if is_deviations_page %}Отклонения от плана{% else %}Отчёты{% endif %}</h1><p class="page-description">{% if is_deviations_page %}Подробная проверка по менеджерам, клиентам и товарам.{% else %}План, прогноз и фактические продажи.{% endif %}</p></div>
+{% if has_data %}<a class="btn btn-outline-primary" href="{% if is_deviations_page %}{% url 'dashboard' %}{% else %}{% url 'sales_deviations' %}{% endif %}{% if filter_query %}?{{ filter_query }}{% endif %}">{% if is_deviations_page %}Вернуться к отчётам{% else %}Посмотреть отклонения{% endif %}</a>{% endif %}</div>
+{% if not has_data %}<div class="alert alert-secondary">{{ message }}</div>{% else %}
+<form method="get" id="filterForm" class="card panel-card p-3 mb-4">
+<div class="row g-3">{% for filter in filters %}
+<div class="col-lg-3 col-sm-6"><label class="form-label" id="label-{{ filter.key }}">{{ filter.title }}</label>
+<details class="sales-filter" data-filter="{{ filter.key }}">
+<summary aria-labelledby="label-{{ filter.key }}"><span class="selection-count">{% if filter.count %}Выбрано: {{ filter.count }}{% else %}Все{% endif %}</span></summary>
+<div class="filter-popup"><input type="search" class="form-control form-control-sm mb-2 filter-search" placeholder="Поиск" aria-label="Поиск: {{ filter.title }}">
+<button type="button" class="btn btn-link btn-sm clear-filter">Снять выбор</button>
+<div class="filter-options">{% for option in filter.options %}
+<label class="filter-option" {% if not option.available and not option.selected %}hidden{% endif %}>
+<input type="checkbox" name="{{ filter.key }}" value="{{ option.value }}" aria-label="{{ option.label }}" {% if option.selected %}checked{% endif %}><span>{{ option.label }}</span></label>
+{% endfor %}</div><small class="text-muted filter-empty" hidden>Нет подходящих значений.</small></div>
+</details></div>{% endfor %}</div>
+<div class="d-flex gap-2 align-items-center flex-wrap mt-3"><button class="btn btn-primary" type="submit">Показать</button>
+<a class="btn btn-outline-secondary" href="{{ reset_url }}">Сбросить</a>
+<small class="text-muted">Можно выбрать несколько значений. Без выбора периода — все месяцы. Последняя выгрузка: {{ reporting_period_label }}.</small></div>
+<p id="filterHint" class="text-muted small mb-0 mt-2" aria-live="polite"></p></form>
+{% if empty_selection %}<div class="alert alert-secondary">Нет данных для выбранного сочетания. Измените фильтры.</div>{% endif %}
+{% if missing_prices %}<div class="alert alert-warning">Строк без подходящей цены: {{ missing_prices }}. Денежные суммы неполные; эти строки исключены из проверки отклонений. Количество сохранено. Цена другого периода не подставляется.</div>{% endif %}
+{% if unmatched_count %}<div class="alert alert-warning">В последней обработке не сопоставлено строк факта: {{ unmatched_count }}. Они не входят в показатели отчёта.</div>{% endif %}
+{% if not is_deviations_page %}
+<h2 class="h5 mb-3">Выбранные периоды</h2><div class="row g-3 mb-4">
+<div class="col-md-4"><div class="card panel-card p-4"><span class="text-muted">План, CNY</span><strong class="fs-3">{{ kpi.month_aop }}</strong></div></div>
+<div class="col-md-4"><div class="card panel-card p-4"><span class="text-muted">Прогноз, CNY</span><strong class="fs-3">{{ kpi.month_forecast }}</strong></div></div>
+<div class="col-md-4"><div class="card panel-card p-4"><span class="text-muted">Факт, CNY</span><strong class="fs-3">{{ kpi.month_fact }}</strong></div></div></div>
+<div class="row g-3 mb-2">
+<div class="col-md-4"><div class="card panel-card p-3"><small>План с начала выбранных лет</small><strong>{{ kpi.ytd_aop }}</strong></div></div>
+<div class="col-md-4"><div class="card panel-card p-3"><small>Прогноз за выбранные годы целиком</small><strong>{{ kpi.full_year_forecast }}</strong></div></div>
+<div class="col-md-4"><div class="card panel-card p-3"><small>Факт с начала выбранных лет</small><strong>{{ kpi.ytd_fact }}</strong></div></div></div>
+<p class="small text-muted">С начала года — до последнего выбранного месяца каждого года, с учётом остальных фильтров.</p>
+<div class="row g-3 mb-4">
+<div class="col-md-4"><div class="card panel-card p-3"><small>Факт / план выбранных периодов</small><strong>{{ kpi.pct_month_aop }}</strong></div></div>
+<div class="col-md-4"><div class="card panel-card p-3"><small>Факт / план с начала года</small><strong>{{ kpi.pct_ytd_aop }}</strong></div></div>
+<div class="col-md-4"><div class="card panel-card p-3"><small>Факт / прогноз с начала года</small><strong>{{ kpi.pct_ytd_forecast }}</strong></div></div></div>
+{% else %}
+<section class="card panel-card p-4 mb-4"><h2 class="h5">Отклонения от плана: {{ anomalies.count }}</h2>
+<p class="text-muted small">{{ anomalies.rule }} Сравнение с AOP, по месяцам с загруженными фактами. Это места возникновения разницы, а не причины продаж.</p>
+{% if anomalies.unknown_periods %}<p class="text-muted small">Не проверялись месяцы без подтверждённых фактов: {{ anomalies.unknown_periods|join:", " }}.</p>{% endif %}
+<div class="row g-3 mb-3">{% for group in anomalies.contributors %}<div class="col-md-4"><h3 class="h6">{{ group.title }}: наибольшая разница</h3>
+{% for row in group.rows %}<div class="d-flex justify-content-between gap-2 small py-1"><span>{{ row.name }}</span><strong class="text-nowrap">{{ row.delta }}</strong></div>{% empty %}<small class="text-muted">Нет отклонений.</small>{% endfor %}</div>{% endfor %}</div>
+<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Период</th><th>Менеджер</th><th>Клиент</th><th>Товар</th><th>Отклонение</th><th>План</th><th>Факт</th><th>Разница</th><th>Выполнение</th></tr></thead>
+<tbody>{% for row in anomalies.rows %}<tr><td>{{ row.period }}</td><td>{{ row.manager }}</td><td>{{ row.client }}</td><td>{{ row.article }}<br><small>{{ row.product }}</small>{% if row.product_class or row.production_index %}<br><small>Класс: {{ row.product_class|default:'—' }} · Индекс: {{ row.production_index|default:'—' }}</small>{% endif %}</td><td>{{ row.reason }}</td><td class="text-nowrap">{{ row.plan }}</td><td class="text-nowrap">{{ row.actual }}</td><td class="text-nowrap">{{ row.delta }}</td><td>{{ row.ratio }}</td></tr>
+{% empty %}<tr><td colspan="9" class="text-muted">По указанным правилам отклонений не найдено.</td></tr>{% endfor %}</tbody></table></div>
+<nav class="d-flex gap-3 align-items-center" aria-label="Страницы отклонений">
+{% if anomaly_page.has_previous %}<a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ anomaly_page.previous_page_number }}">← Назад</a>{% endif %}
+<span>{{ anomaly_page.number }} / {{ anomaly_page.paginator.num_pages }}</span>
+{% if anomaly_page.has_next %}<a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ anomaly_page.next_page_number }}">Далее →</a>{% endif %}
+</nav></section>
+{% endif %}
+{% if not is_deviations_page %}
+<div class="row g-4 mb-4"><div class="col-lg-6"><section class="card panel-card p-4"><h2 class="h5">По менеджерам</h2><div class="chart-area"><canvas id="managerChart"></canvas></div></section></div>
+<div class="col-lg-6"><section class="card panel-card p-4"><h2 class="h5">По выбранным месяцам</h2><div class="chart-area"><canvas id="monthChart"></canvas></div></section></div></div>
+{% endif %}
+{{ facet_rows|json_script:"facet-data" }}{{ chart|json_script:"chart-data" }}{% endif %}</div>
+<style>
+.sales-filter{position:relative;border:1px solid #ced4da;border-radius:6px;background:white}.sales-filter summary{padding:8px 12px;cursor:pointer}.filter-popup{position:absolute;z-index:30;top:100%;left:0;min-width:100%;width:340px;max-width:85vw;padding:12px;background:white;border:1px solid #ced4da;border-radius:6px;box-shadow:0 8px 20px #0002}.filter-options{max-height:280px;overflow:auto}.filter-option{display:flex;gap:8px;padding:6px;align-items:flex-start;font-size:13px;cursor:pointer}.filter-option[hidden]{display:none}.filter-option input{margin-top:3px;flex-shrink:0}.filter-option.unavailable{color:#ad5800}.chart-area{height:360px}
+</style>
+{% if has_data %}
+{% if not is_deviations_page %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endif %}
 <script>
-    function clearSingleFilter(filterName) {
-        const el = document.getElementById('select_' + filterName);
-        if (el) {
-            el.value = '';
-            if (filterName === 'manager') {
-                const clientEl = document.getElementById('select_client');
-                const artEl = document.getElementById('select_article');
-                if (clientEl) clientEl.value = '';
-                if (artEl) artEl.value = '';
-            } else if (filterName === 'client') {
-                const artEl = document.getElementById('select_article');
-                if (artEl) artEl.value = '';
-            }
-            document.getElementById('filterForm').submit();
-        }
-    }
-
-    function clearPeriodFilter() {
-        const el = document.getElementById('select_period');
-        if (el) {
-            el.value = 'reporting_period';
-            document.getElementById('filterForm').submit();
-        }
-    }
-
-    function resetAllFilters() {
-        const clientEl = document.getElementById('select_client');
-        const artEl = document.getElementById('select_article');
-        const periodEl = document.getElementById('select_period');
-        const mgrEl = document.getElementById('select_manager');
-
-        if (clientEl) clientEl.value = '';
-        if (artEl) artEl.value = '';
-        if (periodEl) periodEl.value = 'reporting_period';
-        {% if is_admin %}
-            if (mgrEl) mgrEl.value = '';
-        {% endif %}
-        document.getElementById('filterForm').submit();
-    }
-
-    // 1. График по менеджерам
-    const ctxDyn = document.getElementById('dynamicManagersChart').getContext('2d');
-    new Chart(ctxDyn, {
-        type: 'bar',
-        data: {
-            labels: {{ dyn_managers|safe }},
-            datasets: [
-                {
-                    label: 'AOP, CNY',
-                    data: {{ dyn_aop|safe }},
-                    backgroundColor: '#7dd3fc',
-                    borderRadius: 3,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.8
-                },
-                {
-                    label: 'Прогноз, CNY',
-                    data: {{ dyn_forecast|safe }},
-                    backgroundColor: '#94a3b8',
-                    borderRadius: 3,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.8
-                },
-                {
-                    label: 'Факт, CNY',
-                    data: {{ dyn_fact|safe }},
-                    backgroundColor: '#78716c',
-                    borderRadius: 3,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.8
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
-            },
-            scales: {
-                x: {
-                    ticks: { maxRotation: 45, minRotation: 25, font: { size: 10 } }
-                },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(val) {
-                            return val >= 1000000 ? (val / 1000000).toFixed(0) + 'M' : (val / 1000).toFixed(0) + 'K';
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    // 2. График по месяцам
-    const ctxStatic = document.getElementById('staticMonthsChart').getContext('2d');
-    new Chart(ctxStatic, {
-        type: 'bar',
-        data: {
-            labels: {{ static_labels|safe }},
-            datasets: [
-                {
-                    label: 'AOP, CNY',
-                    data: {{ static_aop|safe }},
-                    backgroundColor: '#7dd3fc',
-                    borderRadius: 3,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.8
-                },
-                {
-                    label: 'Прогноз, CNY',
-                    data: {{ static_forecast|safe }},
-                    backgroundColor: '#94a3b8',
-                    borderRadius: 3,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.8
-                },
-                {
-                    label: 'Факт, CNY',
-                    data: {{ static_fact|safe }},
-                    backgroundColor: '#78716c',
-                    borderRadius: 3,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.8
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
-            },
-            scales: {
-                x: {
-                    ticks: { font: { size: 11 } }
-                },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(val) {
-                            return (val / 1000000).toFixed(0) + 'M';
-                        }
-                    }
-                }
-            }
-        }
-    });
-</script>
+(() => {
+const rows=JSON.parse(document.getElementById('facet-data').textContent);
+const filters=Array.from(document.querySelectorAll('.sales-filter'));
+const chosen=()=>filters.map(f=>new Set(Array.from(f.querySelectorAll('input:checked')).map(c=>c.value)));
+function refresh(){
+const selected=chosen();let conflicts=false;
+filters.forEach((filter,i)=>{
+const allowed=new Set(rows.filter(row=>selected.every((set,j)=>i===j||!set.size||set.has(row[j]))).map(row=>row[i]));
+const search=filter.querySelector('.filter-search').value.toLocaleLowerCase();let visible=0;
+filter.querySelectorAll('.filter-option').forEach(label=>{
+const input=label.querySelector('input'),valid=allowed.has(input.value);
+label.hidden=!(valid||input.checked)||!label.textContent.toLocaleLowerCase().includes(search);
+label.classList.toggle('unavailable',input.checked&&!valid);
+if(input.checked&&!valid)conflicts=true;if(!label.hidden)visible++;
+});
+filter.querySelector('.selection-count').textContent=selected[i].size?'Выбрано: '+selected[i].size:'Все';
+filter.querySelector('.filter-empty').hidden=visible>0;
+});
+document.getElementById('filterHint').textContent=conflicts?'Выбранные значения не имеют общих данных. Снимите несовместимые значения, выделенные цветом.':'';
+}
+filters.forEach(filter=>{
+filter.addEventListener('toggle',()=>{if(filter.open)filters.forEach(other=>{if(other!==filter)other.open=false;});});
+filter.addEventListener('keydown',event=>{if(event.key==='Escape')filter.open=false;});
+filter.addEventListener('change',refresh);
+filter.querySelector('.filter-search').addEventListener('input',refresh);
+filter.querySelector('.clear-filter').addEventListener('click',()=>{filter.querySelectorAll('input:checked').forEach(c=>c.checked=false);refresh();});
+});
+document.getElementById('filterForm').addEventListener('submit',event=>{
+if(!chosen()[3].size){const hidden=document.createElement('input');hidden.type='hidden';hidden.name='period';hidden.value='';event.target.append(hidden);}
+});
+refresh();
+if(!document.getElementById('managerChart') || typeof Chart==='undefined')return;
+const data=JSON.parse(document.getElementById('chart-data').textContent),labels=['План, CNY','Прогноз, CNY','Факт, CNY'],colors=['#7dd3fc','#94a3b8','#78716c'];
+function draw(id,names,values){new Chart(document.getElementById(id),{type:'bar',data:{labels:names,datasets:values.map((values,i)=>({label:labels[i],data:values,backgroundColor:colors[i]}))},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}},plugins:{legend:{position:'bottom'}}}});}
+draw('managerChart',data.managers,data.manager_values);draw('monthChart',data.months,data.month_values);
+})();
+</script>{% endif %}
 {% endblock %}
