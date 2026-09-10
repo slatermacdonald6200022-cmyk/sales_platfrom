@@ -364,55 +364,6 @@ def processing_run_detail(request, run_id):
 
 
 @login_required
-def processing_issues(request, run_id):
-    """Read only the saved evidence of this run, never today's uploaded plans."""
-    from collections import Counter
-    processing_run = get_object_or_404(ProcessingRun, pk=run_id)
-    if not _can_open_run(request.user, processing_run) or not can_view_final_dataset(request.user):
-        raise PermissionDenied('Разбор несоответствий доступен аналитику и администратору.')
-    items = []
-    legacy = True
-    warning = ''
-    try:
-        if processing_run.final_file:
-            diagnostic_path = _resolve_stored_path(processing_run.final_file).with_name('matching_diagnostics.json')
-            if diagnostic_path.exists():
-                payload = json.loads(diagnostic_path.read_text(encoding='utf-8'))
-                if payload.get('version') != 1 or not isinstance(payload.get('items'), list):
-                    raise ValueError('Invalid diagnostic format')
-                items = payload['items']
-                legacy = False
-        if legacy and processing_run.unmatched_file.lower().endswith('.xlsx'):
-            table = pd.read_excel(_resolve_stored_path(processing_run.unmatched_file)).fillna('')
-            items = [{'client': row.get('Клиент из выгрузки', ''),
-                      'article': row.get('Артикул из выгрузки', ''),
-                      'product_code': row.get('Код товара из выгрузки', ''),
-                      'period': row.get('Период', ''), 'quantity': row.get('Факт, шт', ''),
-                      'manager': row.get('Менеджер', 'Не определён'),
-                      'source_files': row.get('Файл менеджера', ''),
-                      'reason': row.get('Причина', ''), 'candidates': []}
-                     for row in table.to_dict('records')]
-    except (OSError, ValueError, KeyError, Http404):
-        warning = 'Не удалось прочитать сохранённые сведения. Проверьте наличие файлов этой обработки.'
-    counts = sorted(Counter(item['reason'] for item in items).items())
-    total = len(items)
-    reason = request.GET.get('reason', '')
-    query = request.GET.get('q', '').strip()
-    if reason:
-        items = [item for item in items if item['reason'] == reason]
-    if query:
-        items = [item for item in items if query.casefold() in ' '.join(
-            str(item.get(key, '')) for key in ['client', 'article', 'product_code', 'manager', 'source_files']).casefold()]
-    parameters = request.GET.copy()
-    parameters.pop('page', None)
-    return render(request, 'analytics/processing_issues.html', {
-        'run': processing_run, 'issue_page': Paginator(items, 20).get_page(request.GET.get('page')),
-        'counts': counts, 'total': total, 'legacy': legacy, 'warning': warning,
-        'selected_reason': reason, 'query': query, 'filter_query': parameters.urlencode(),
-    })
-
-
-@login_required
 def download_processing_file(request, run_id, file_kind):
     processing_run = get_object_or_404(ProcessingRun, pk=run_id)
     if not _can_open_run(request.user, processing_run):

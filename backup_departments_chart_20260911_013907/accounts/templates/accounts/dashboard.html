@@ -6,8 +6,8 @@
 {% if has_data %}<a class="btn btn-outline-primary" href="{% if is_deviations_page %}{% url 'dashboard' %}{% else %}{% url 'sales_deviations' %}{% endif %}{% if filter_query %}?{{ filter_query }}{% endif %}">{% if is_deviations_page %}Вернуться к отчётам{% else %}Посмотреть отклонения{% endif %}</a>{% endif %}</div>
 {% if not has_data %}<div class="alert alert-secondary">{{ message }}</div>{% else %}
 <form method="get" id="filterForm" class="card panel-card p-3 mb-4">
-<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-5 g-3">{% for filter in filters %}
-<div class="col"><label class="form-label" id="label-{{ filter.key }}">{{ filter.title }}</label>
+<div class="row g-3">{% for filter in filters %}
+<div class="col-lg-3 col-sm-6"><label class="form-label" id="label-{{ filter.key }}">{{ filter.title }}</label>
 <details class="sales-filter" data-filter="{{ filter.key }}">
 <summary aria-labelledby="label-{{ filter.key }}"><span class="selection-count">{% if filter.count %}Выбрано: {{ filter.count }}{% else %}Все{% endif %}</span></summary>
 <div class="filter-popup"><input type="search" class="form-control form-control-sm mb-2 filter-search" placeholder="Поиск" aria-label="Поиск: {{ filter.title }}">
@@ -56,10 +56,6 @@
 {% if not is_deviations_page %}
 <div class="row g-4 mb-4"><div class="col-lg-6"><section class="card panel-card p-4"><h2 class="h5">По менеджерам</h2><div class="chart-area"><canvas id="managerChart"></canvas></div></section></div>
 <div class="col-lg-6"><section class="card panel-card p-4"><h2 class="h5">По выбранным месяцам</h2><div class="chart-area"><canvas id="monthChart"></canvas></div></section></div></div>
-<section class="card panel-card p-4 mb-4"><h2 class="h5">По отделам</h2><div class="chart-area"><canvas id="departmentChart"></canvas></div></section>
-<section class="card panel-card p-4 mb-4"><h2 class="h5">Компания за {{ chart.company_year }} год</h2>
-<p class="small text-muted">План, прогноз и факт по всем отделам за январь–декабрь. Фильтры не влияют на этот график. Год соответствует последней выгрузке.</p>
-<div class="chart-area"><canvas id="companyYearChart"></canvas></div></section>
 {% endif %}
 {{ facet_rows|json_script:"facet-data" }}{{ chart|json_script:"chart-data" }}{% endif %}</div>
 <style>
@@ -103,8 +99,6 @@ if(!document.getElementById('managerChart') || typeof Chart==='undefined')return
 const data=JSON.parse(document.getElementById('chart-data').textContent),labels=['План, CNY','Прогноз, CNY','Факт, CNY'],colors=['#7dd3fc','#94a3b8','#78716c'];
 function draw(id,names,values){new Chart(document.getElementById(id),{type:'bar',data:{labels:names,datasets:values.map((values,i)=>({label:labels[i],data:values,backgroundColor:colors[i]}))},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}},plugins:{legend:{position:'bottom'}}}});}
 draw('managerChart',data.managers,data.manager_values);draw('monthChart',data.months,data.month_values);
-draw('departmentChart',data.departments,data.department_values);
-draw('companyYearChart',data.company_months,data.company_values);
 })();
 </script>{% endif %}
 {% endblock %}

@@ -24,8 +24,7 @@ def prepare_frame(frame):
     for col in ['Менеджер', 'Клиент', 'Артикул', 'Наименование', 'Класс товара', 'Производственный индекс']:
         df[col] = df[col].fillna('').astype(str).str.strip() if col in df else ''
     df['Артикул'] = df['Артикул'].str.replace(r'\.0$', '', regex=True)
-    departments = {manager: department_for_manager(manager) for manager in df['Менеджер'].unique()}
-    df['Отдел'] = df['Менеджер'].map(departments)
+    df['Отдел'] = df['Менеджер'].map(department_for_manager)
     for col in ['Год', 'Номер месяца']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df = df[df['Год'].between(2000, 2100) & df['Номер месяца'].between(1, 12)].copy()

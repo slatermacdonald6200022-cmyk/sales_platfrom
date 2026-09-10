@@ -1,0 +1,49 @@
+{% extends "accounts/base.html" %}
+{% block title %}Разбор несоответствий | Планирование продаж{% endblock %}
+{% block content %}
+<div class="container-fluid page-shell">
+  <div class="page-header">
+    <div><h1 class="page-title">Разбор несоответствий</h1>
+      <p class="page-description">Обработка №{{ run.id }} · {{ run.period_label }} · позиций для проверки: {{ total }}</p></div>
+    <a class="btn btn-outline-secondary" href="{% url 'processing_run_detail' run.id %}">К обработке</a>
+  </div>
+  {% if warning %}<div class="alert alert-warning">{{ warning }}</div>{% endif %}
+  {% if legacy %}<div class="alert alert-light border">Для этой обработки подробные варианты строк не сохранялись. Здесь показан её прежний список несоответствий. Чтобы получить сравнение кодов и цен, выполните новую обработку актуальных файлов.</div>{% endif %}
+  <form method="get" class="card panel-card p-3 mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5"><label class="form-label" for="issue-query">Клиент, менеджер, артикул или код</label><input id="issue-query" name="q" value="{{ query }}" class="form-control"></div>
+      <div class="col-md-5"><label class="form-label" for="issue-reason">Причина</label><select id="issue-reason" name="reason" class="form-select"><option value="">Все причины</option>{% for label,count in counts %}<option value="{{ label }}" {% if selected_reason == label %}selected{% endif %}>{{ label }} ({{ count }})</option>{% endfor %}</select></div>
+      <div class="col-md-2"><button class="btn btn-brand" type="submit">Показать</button> <a href="{% url 'processing_issues' run.id %}">Сбросить</a></div>
+    </div>
+  </form>
+  <p class="text-muted">Найдено: {{ issue_page.paginator.count }}. Варианты ниже — сведения для проверки, а не автоматически выбранные соответствия. Цена указана за отчётный период.</p>
+  {% for item in issue_page %}
+  <section class="card panel-card p-4 mb-3">
+    <h2 class="h5">{{ item.client }}</h2>
+    <p class="mb-2"><strong>{{ item.reason }}</strong></p>
+    <p>Менеджер: {{ item.manager|default:"Не определён" }}{% if item.source_files %}<br><small>{{ item.source_files }}</small>{% endif %}</p>
+    <div class="border rounded p-3 mb-3">Выгрузка: артикул <strong>{{ item.article|default:"не указан" }}</strong> · код <strong>{{ item.product_code|default:"не указан" }}</strong> · количество {{ item.quantity }} · период {{ item.period }}<br>
+      <small>Класс: {{ item.product_class|default:"не указан" }} · индекс: {{ item.production_index|default:"не указан" }}</small></div>
+    {% if item.candidates %}
+    <p class="small text-muted">{{ item.candidate_basis }}</p>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+      <thead><tr><th>Менеджер / клиент</th><th>Артикул / код в плане</th><th>Класс / индекс</th><th>Цена, CNY</th><th>АОП, шт</th><th>Прогноз, шт</th><th>Где искать</th></tr></thead>
+      <tbody>{% for candidate in item.candidates %}<tr>
+        <td>{{ candidate.manager }}<br><small>{{ candidate.client }}</small></td>
+        <td>{{ candidate.article }}<br><strong>{{ candidate.product_code|default:"не указан" }}</strong></td>
+        <td>{{ candidate.product_class|default:"не указан" }} / {{ candidate.production_index|default:"не указан" }}</td>
+        <td>{{ candidate.price|default_if_none:"Не указана" }}</td>
+        <td>{{ candidate.aop_quantity|default_if_none:"—" }}</td><td>{{ candidate.forecast_quantity|default_if_none:"—" }}</td>
+        <td><small>{{ candidate.source_file|default:"—" }}<br>Лист: {{ candidate.source_sheet|default:"—" }} · строка {{ candidate.source_row|default_if_none:"—" }}</small></td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% elif not legacy %}<p class="text-muted mb-0">Строки для сравнения по клиенту и товару за этот период не найдены. Проверьте состав плана и название клиента.</p>{% endif %}
+  </section>
+  {% empty %}<div class="card panel-card p-4">{% if warning %}Сведения недоступны.{% elif query or selected_reason %}Нет позиций по выбранным условиям.{% elif legacy %}Подробных сведений нет.{% else %}Несоответствий и пропущенных цен не обнаружено.{% endif %}</div>{% endfor %}
+  <nav class="d-flex gap-3 mb-4" aria-label="Страницы несоответствий">
+    {% if issue_page.has_previous %}<a href="?{{ filter_query }}&amp;page={{ issue_page.previous_page_number }}">Назад</a>{% endif %}
+    <span>{{ issue_page.number }} / {{ issue_page.paginator.num_pages }}</span>
+    {% if issue_page.has_next %}<a href="?{{ filter_query }}&amp;page={{ issue_page.next_page_number }}">Далее</a>{% endif %}
+  </nav>
+</div>
+{% endblock %}

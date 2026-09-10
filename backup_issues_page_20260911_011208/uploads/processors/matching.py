@@ -85,7 +85,6 @@ def merge(plans_df, actuals_df, history=None):
         return indices
 
     checked = []
-    diagnostics = []
     current_periods = set()
     if not actuals.empty:
         actuals = actuals.rename(columns={
@@ -183,39 +182,6 @@ def merge(plans_df, actuals_df, history=None):
                             'Код товара из выгрузки': row[CODE],
                             'Период': row['_key_month'], 'Факт, шт': row['Факт, шт'], 'Факт, CNY': calculated_amount,
                             **{col: row['_' + col] for col in EXTRA}, 'Причина': reason})
-            if reason or calculated_amount is None:
-                diagnostic_indices = indices or base_candidates(row)
-                candidate_basis = 'Совпадение клиента и товара за период'
-                if not diagnostic_indices:
-                    # Article fallback is diagnostic only: never writes quantities.
-                    diagnostic_indices = index_article.get((row['_key_client'], row['_key_article'], row['_key_month']), [])
-                    diagnostic_indices = diagnostic_indices or canonical_article.get(
-                        (row['_key_client_canonical'], row['_key_article'], row['_key_month']), [])
-                    candidate_basis = 'Одинаковый артикул у клиента за период. Коды требуют проверки'
-                def value(i, column):
-                    v = plans.at[i, column] if column in plans else None
-                    if v is None or pd.isna(v):
-                        return None
-                    return v.item() if hasattr(v, 'item') else v
-                diagnostics.append({
-                    'client': row['_source_client'], 'article': row['Артикул'],
-                    'product_code': row[CODE], 'period': row['_key_month'], 'quantity': row['Факт, шт'],
-                    'product_class': row['_Класс товара'], 'production_index': row['_Производственный индекс'],
-                    'manager': source_values('Менеджер') or 'Не определён',
-                    'source_files': source_values('_Исходный файл'),
-                    'reason': reason or 'Не указана цена за период',
-                    'candidate_basis': candidate_basis,
-                    'candidates': [{
-                        'manager': value(i, 'Менеджер'), 'client': value(i, 'Клиент'),
-                        'article': value(i, 'Артикул'), 'product_code': value(i, CODE),
-                        'product_class': value(i, 'Класс товара'),
-                        'production_index': value(i, 'Производственный индекс'),
-                        'price': value(i, PRICE) if value(i, PRICE) and value(i, PRICE) > 0 else None,
-                        'forecast_quantity': value(i, 'Прогноз, шт'), 'aop_quantity': value(i, 'AOP, шт'),
-                        'source_file': value(i, '_Исходный файл'), 'source_sheet': value(i, '_Исходный лист'),
-                        'source_row': value(i, '_Исходная строка'),
-                    } for i in diagnostic_indices],
-                })
     current_unmatched = [row for row in checked if row['Причина']]
     unmatched = current_unmatched
     plans['Месяц'] = plans['Номер месяца'].map(MONTH_NAMES_RU)
@@ -233,6 +199,5 @@ def merge(plans_df, actuals_df, history=None):
         'matched_amount_cny': sum(row['Факт, CNY'] or 0 for row in checked if not row['Причина']),
         'unmatched_amount_cny': 0.0, 'unmatched_df': pd.DataFrame(unmatched),
         'missing_price_rows': sum(not row['Причина'] and row['Факт, CNY'] is None for row in checked),
-        'diagnostics': diagnostics,
     }
     return result

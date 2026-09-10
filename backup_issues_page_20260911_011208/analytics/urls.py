@@ -2,7 +2,6 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('history/<int:run_id>/issues/', views.processing_issues, name='processing_issues'),
     path('processing/combined/', views.download_combined_excel, name='download_combined_excel'),
     path('processing/', views.processing_page_view, name='processing_page'),
     path('processing/run/', views.run_etl_api, name='run_etl_api'),

@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 from django.conf import settings
 
-FIELDS = {'manager': 'Менеджер', 'client': 'Клиент', 'article': 'Артикул', 'period': '_period', 'department': 'Отдел'}
+FIELDS = {'manager': 'Менеджер', 'client': 'Клиент', 'article': 'Артикул', 'period': '_period'}
 MONEY = ['AOP, CNY', 'Прогноз, CNY', 'Факт, CNY']
 QUANTITY = ['AOP, шт', 'Прогноз, шт', 'Факт, шт']
 PRICE = 'Цена, юань, без НДС 1 п/г 2026'
@@ -17,15 +17,12 @@ def money(value):
 
 
 def prepare_frame(frame):
-    from .departments import department_for_manager
     df = frame.copy()
     for col in MONEY + QUANTITY + [PRICE]:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0) if col in df else 0.0
     for col in ['Менеджер', 'Клиент', 'Артикул', 'Наименование', 'Класс товара', 'Производственный индекс']:
         df[col] = df[col].fillna('').astype(str).str.strip() if col in df else ''
     df['Артикул'] = df['Артикул'].str.replace(r'\.0$', '', regex=True)
-    departments = {manager: department_for_manager(manager) for manager in df['Менеджер'].unique()}
-    df['Отдел'] = df['Менеджер'].map(departments)
     for col in ['Год', 'Номер месяца']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df = df[df['Год'].between(2000, 2100) & df['Номер месяца'].between(1, 12)].copy()
@@ -117,7 +114,7 @@ def build_context(frame, params, final_file, reporting, include_deviations=True)
     all_options = {key: sorted(v for v in active[col].unique() if v) for key, col in FIELDS.items()}
     # Выбор, не имеющий совпадений, не сбрасывается в «вся компания».
     filters = []
-    titles = {'manager': 'Менеджер', 'client': 'Клиент', 'article': 'Товар', 'period': 'Период', 'department': 'Отдел'}
+    titles = {'manager': 'Менеджер', 'client': 'Клиент', 'article': 'Товар', 'period': 'Период'}
     products = df.drop_duplicates('Артикул').set_index('Артикул')['Наименование'].to_dict()
     for key in FIELDS:
         options = []
@@ -145,13 +142,7 @@ def build_context(frame, params, final_file, reporting, include_deviations=True)
                pct_ytd_forecast=percent(ytd['Факт, CNY'].sum(), ytd['Прогноз, CNY'].sum()))
     grouped = current.groupby('Менеджер')[MONEY].sum().sort_values('AOP, CNY', ascending=False)
     timeline = current.groupby('_period')[MONEY].sum().sort_index()
-    department_totals = current.groupby('Отдел')[MONEY].sum()
-    company_year = df[df['Год'] == reporting[0]].groupby('Номер месяца')[MONEY].sum().reindex(range(1, 13), fill_value=0)
     chart = {'managers': list(grouped.index), 'months': list(timeline.index),
-             'departments': list(department_totals.index),
-             'department_values': [department_totals[col].tolist() for col in MONEY],
-             'company_year': int(reporting[0]), 'company_months': MONTHS,
-             'company_values': [company_year[col].tolist() for col in MONEY],
              'manager_values': [grouped[col].tolist() for col in MONEY],
              'month_values': [timeline[col].tolist() for col in MONEY]}
     known = set(df.loc[(df['Факт, CNY'] != 0) | (df['Факт, шт'] != 0), '_period'])

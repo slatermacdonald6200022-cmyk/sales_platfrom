@@ -36,31 +36,6 @@ def plan_rows():
 
 
 class NewFormatTests(SimpleTestCase):
-    def test_diagnostics_show_article_candidates_without_matching_wrong_code(self):
-        plans = plan_rows().iloc[[1]].copy()
-        plans['_Исходная строка'] = 18
-        actual = pd.DataFrame([{'Клиент': 'Client', 'Артикул': 'A1', 'Код товара': 'Wrong code',
-                               'Год': 2026, 'Номер месяца': 9, 'Факт, шт': 7}])
-        result = merge_plans_with_1c(plans, actual)
-        item = result.attrs['matching_report']['diagnostics'][0]
-        self.assertEqual(result['Факт, шт'].sum(), 0)
-        self.assertEqual(item['product_code'], 'Wrong code')
-        self.assertEqual(item['candidates'][0]['product_code'], 'Internal code')
-        self.assertEqual(item['candidates'][0]['price'], 10)
-        self.assertEqual(item['candidates'][0]['forecast_quantity'], 3)
-        self.assertEqual(item['candidates'][0]['source_row'], 18)
-
-    def test_missing_price_is_in_diagnostics_without_changing_match_count(self):
-        plans = plan_rows().iloc[[1]].copy()
-        plans['Цена, юань, без НДС 1 п/г 2026'] = 0
-        actual = pd.DataFrame([{'Клиент': 'Client', 'Артикул': 'A1',
-                               'Год': 2026, 'Номер месяца': 9, 'Факт, шт': 7}])
-        result = merge_plans_with_1c(plans, actual)
-        report = result.attrs['matching_report']
-        self.assertEqual(report['matched_rows'], 1)
-        self.assertEqual(report['diagnostics'][0]['reason'], 'Не указана цена за период')
-        self.assertIsNone(report['diagnostics'][0]['candidates'][0]['price'])
-
     def test_pool_clients_come_from_uploaded_list_not_substrings(self):
         plans = plan_rows().iloc[[1]].copy()
         plans['Менеджер'] = 'Ушаков Алексей'

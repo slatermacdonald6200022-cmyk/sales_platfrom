@@ -120,9 +120,6 @@
                         </ul>
                     {% endif %}
                     <div class="d-grid gap-2">
-                        {% if run.status == 'success' %}
-                            <a href="{% url 'processing_issues' run.id %}" class="btn btn-outline-primary btn-sm">Разобрать несоответствия</a>
-                        {% endif %}
                         {% if run.final_file %}
                             <a href="{% url 'download_processing_file' run.id 'final' %}" class="btn btn-brand btn-sm">Скачать итоговую таблицу</a>
                         {% endif %}

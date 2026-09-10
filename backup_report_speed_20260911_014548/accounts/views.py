@@ -167,8 +167,7 @@ def dashboard_view(request, deviations_page=False):
             'message': 'Данные ещё не подготовлены. Запустите обработку файлов.'
         })
     try:
-        from .report_cache import read_report
-        df = read_report(latest_file)
+        df = pd.read_excel(latest_file)
         reporting = get_reporting_period(latest_file, df)
         context = build_context(df, request.GET, latest_file, reporting, include_deviations=deviations_page)
         context['is_deviations_page'] = deviations_page

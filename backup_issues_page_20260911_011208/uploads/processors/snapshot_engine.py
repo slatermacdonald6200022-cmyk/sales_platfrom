@@ -216,10 +216,6 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     final_path = final_dir / "FINAL_SALES_FACT_TABLE.xlsx"
 
     matching_report = final_df.attrs.get('matching_report', {})
-    # Store the exact candidates of this run; later uploads cannot change the report.
-    (final_dir / 'matching_diagnostics.json').write_text(
-        json.dumps({'version': 1, 'items': matching_report.get('diagnostics', [])},
-                   ensure_ascii=False, allow_nan=False), encoding='utf-8')
     unmatched_df = matching_report.get('unmatched_df', pd.DataFrame())
     unmatched_path = None
     if unmatched_df is not None and not unmatched_df.empty:

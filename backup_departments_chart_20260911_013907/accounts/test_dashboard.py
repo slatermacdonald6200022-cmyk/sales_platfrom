@@ -16,24 +16,6 @@ def frame():
 
 
 class DashboardTests(SimpleTestCase):
-    def test_company_year_is_independent_of_all_filters(self):
-        baseline = build_context(frame(), QueryDict(''), '/missing/final.xlsx', (2026, 1))
-        filtered = build_context(frame(), QueryDict('manager=missing&client=X&article=Q&period=2025-01&department=Trailers'), '/missing/final.xlsx', (2026, 1))
-        self.assertEqual(baseline['chart']['company_values'], filtered['chart']['company_values'])
-        self.assertEqual(len(filtered['chart']['company_months']), 12)
-        self.assertEqual(filtered['chart']['company_values'][0][0], 1100)
-        self.assertEqual(filtered['chart']['company_year'], 2026)
-
-    def test_department_filters_are_linked_to_manager(self):
-        df = frame()
-        df['Менеджер'] = df['Менеджер'].replace({'A': 'Редько Вадим', 'B': 'Ушаков Алексей', 'C': 'Измайлов'})
-        df = prepare_frame(df)
-        selected = selections(QueryDict('department=Truck%26BUS&period='), df, '2026-01')
-        self.assertEqual(set(apply_filters(df, selected)['Менеджер']), {'Редько Вадим'})
-        self.assertEqual(facet_options(df, selected)['manager'], ['Редько Вадим'])
-        selected = selections(QueryDict('department=Trailers&department=Aftermarket&period='), df, '2026-01')
-        self.assertEqual(set(apply_filters(df, selected)['Менеджер']), {'Измайлов', 'Ушаков Алексей'})
-
     def test_multiselect_is_or_within_and_between(self):
         df = frame()
         selected = selections(QueryDict('manager=A&manager=B&article=P&period=2026-01'), df, '2026-01')
