@@ -1,0 +1,19 @@
+{% extends "accounts/base.html" %}
+{% block title %}Менеджеры | Планирование продаж{% endblock %}
+{% block content %}
+<div class="container-fluid page-shell">
+<div class="page-header"><div><h1 class="page-title">Менеджеры</h1><p>Активных: {{ active_count }}</p></div><a class="btn btn-outline-secondary" href="{% url 'profile' %}">К профилю</a></div>
+<p>Файлы требуются только от активных менеджеров. Отключение закрывает вход в аккаунт и исключает его файл из новых обработок. Исходные файлы и архив остаются на сервере; старые отчёты не меняются.</p>
+<p class="text-muted small">Удаление убирает менеджера и связанный аккаунт окончательно. Для временного ограничения доступа используйте «Отключить».</p>
+<a class="btn btn-brand mb-3" href="{% url 'manager_add' %}">Добавить менеджера</a>
+<div class="card panel-card p-3 table-responsive"><table class="table align-middle">
+<thead><tr><th>Менеджер</th><th>Отдел</th><th>Логин</th><th>Статус</th><th>Действия</th></tr></thead><tbody>
+{% for manager in managers %}<tr><td>{{ manager.name }}</td><td>{{ manager.department|default:"Не указан" }}</td><td>{% if manager.user %}{{ manager.user.username }}{% else %}{{ manager.legacy_username }} <small>(аккаунт не привязан)</small>{% endif %}</td><td>{% if manager.is_active %}Активен{% else %}Отключён{% endif %}</td><td>
+<a class="btn btn-outline-primary btn-sm" href="{% url 'manager_edit' manager.pk %}">Изменить</a>
+<form method="post" class="d-inline" action="{% url 'manager_toggle' manager.pk %}" onsubmit="return confirm('Изменить статус менеджера? При отключении его файл не участвует в новых обработках, а вход в аккаунт закрывается. Архив сохранится.');">{% csrf_token %}
+{% if manager.is_active %}<button name="action" value="disable" class="btn btn-outline-danger btn-sm">Отключить</button>{% else %}<button name="action" value="enable" class="btn btn-outline-success btn-sm">Включить</button>{% endif %}
+</form>
+<a class="btn btn-danger btn-sm" href="{% url 'manager_delete' manager.pk %}">Удалить</a>
+</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

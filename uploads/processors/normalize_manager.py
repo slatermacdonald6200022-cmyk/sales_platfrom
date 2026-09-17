@@ -170,6 +170,10 @@ def period_price(row, candidates, month):
 
 
 def extract_manager_from_filename(filename):
+    from accounts.manager_registry import source_manager
+    registered = source_manager(filename)
+    if registered:
+        return registered.name
     fname = filename.lower()
     mapping = {
         'tsarev': 'Царев Михаил', 'царев': 'Царев Михаил',
@@ -250,7 +254,7 @@ def process_manager_sheet(df, filename="", default_manager=""):
         data_df.iloc[:, supplier_col] = data_df.iloc[:, supplier_col].ffill()
 
     manager_val = default_manager or extract_manager_from_filename(filename)
-    is_ushakov = "ушаков" in manager_val.lower() or "ушаков" in filename.lower()
+    is_ushakov = filename.startswith('plan_ushakov_') or "ушаков" in manager_val.lower() or "ушаков" in filename.lower()
 
     records = []
     for source_row, row in data_df.iterrows():
@@ -341,6 +345,9 @@ def normalize_all_managers(raw_dir="data/raw"):
         return pd.DataFrame()
 
     for fname in files:
+        from accounts.manager_registry import active_source
+        if not active_source(fname):
+            continue
         fpath = os.path.join(raw_dir, fname)
         try:
             excel_file = pd.ExcelFile(fpath)

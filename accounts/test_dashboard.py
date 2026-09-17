@@ -1,5 +1,5 @@
 from django.http import QueryDict
-from django.test import SimpleTestCase
+from django.test import TestCase
 import pandas as pd
 from .dashboard import prepare_frame, selections, apply_filters, facet_options, deviations, build_context, PRICE
 
@@ -15,7 +15,20 @@ def frame():
             ('A', 'X', 'P', 12, 1000, 0)]]))
 
 
-class DashboardTests(SimpleTestCase):
+class DashboardTests(TestCase):
+    def test_whole_year_and_all_time_period_options(self):
+        df = frame()
+        old = df.iloc[[0]].copy()
+        old['Год'] = 2025
+        df = pd.concat([df, old], ignore_index=True)
+        yearly = build_context(df, QueryDict('period=year_2026'), '/missing/final.xlsx', (2026, 1))
+        self.assertEqual(yearly['selected']['period'], ['2026-01', '2026-02', '2026-12'])
+        period_filter = next(f for f in yearly['filters'] if f['key'] == 'period')
+        self.assertEqual(period_filter['years'], ['2025', '2026'])
+        all_time = build_context(df, QueryDict('period=all_time'), '/missing/final.xlsx', (2026, 1))
+        self.assertEqual(all_time['selected']['period'], ['2025-01', '2026-01', '2026-02', '2026-12'])
+        self.assertEqual(yearly['chart']['company_values'], all_time['chart']['company_values'])
+
     def test_company_year_is_independent_of_all_filters(self):
         baseline = build_context(frame(), QueryDict(''), '/missing/final.xlsx', (2026, 1))
         filtered = build_context(frame(), QueryDict('manager=missing&client=X&article=Q&period=2025-01&department=Trailers'), '/missing/final.xlsx', (2026, 1))

@@ -1,0 +1,21 @@
+{% extends "accounts/base.html" %}
+{% block title %}Удаление менеджера | Планирование продаж{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:720px">
+<h1 class="h3">Удалить менеджера?</h1>
+<div class="card panel-card p-4">
+<dl class="row"><dt class="col-sm-4">Менеджер</dt><dd class="col-sm-8">{{ manager.name }}</dd>
+<dt class="col-sm-4">Отдел</dt><dd class="col-sm-8">{{ manager.department|default:"Не указан" }}</dd>
+<dt class="col-sm-4">Аккаунт</dt><dd class="col-sm-8">{% if account %}{{ account.username }}{% else %}Не привязан{% endif %}</dd></dl>
+<div class="alert alert-warning">
+Будет удалена запись менеджера{% if account %}, его аккаунт и профиль. Вход под этим аккаунтом станет невозможен, а логин можно будет использовать снова{% endif %}.
+Восстановить запись кнопкой «Включить» после удаления нельзя.
+</div>
+<p>Исходные таблицы, файлы с фактами и архивные отчёты не удаляются. Они не перейдут автоматически к новому менеджеру, даже если создать его с тем же логином. Сохранённые продажи останутся в прежних отчётах.</p>
+<p>Для подтверждения введите {% if account %}логин{% else %}имя менеджера{% endif %}: <strong>{{ expected }}</strong></p>
+<form method="post">{% csrf_token %}{{ form.non_field_errors }}
+<div class="mb-3">{{ form.confirmation.label_tag }}{{ form.confirmation }}{{ form.confirmation.errors }}</div>
+<button type="submit" class="btn btn-danger">Удалить окончательно</button>
+<a href="{% url 'manage_managers' %}" class="btn btn-outline-secondary">Отмена</a>
+</form></div></div>
+{% endblock %}

@@ -47,6 +47,7 @@
             </div>
         </div>
 
+        {% if user.is_superuser %}<a href="{% url 'manage_managers' %}" class="btn btn-brand mt-3">Управление менеджерами</a>{% endif %}
         <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
             <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">&larr; На главную</a>
             <form method="post" action="{% url 'logout' %}" class="m-0">

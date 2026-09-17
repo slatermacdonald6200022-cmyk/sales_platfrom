@@ -147,10 +147,12 @@
                         </form>
                     </div>
                     <div class="text-muted mt-1" style="font-size: 0.78rem;">
-                        Размер: {{ fact_1c.size }} &bull; Строк: {{ fact_1c.rows }} &bull; Столбцов: {{ fact_1c.cols }} &bull; Изменен: {{ fact_1c.modified }}
+                        Размер: {{ fact_1c.size }} &bull; Изменён: {{ fact_1c.modified }}
                     </div>
                     <div class="text-muted mt-1" style="font-size: 0.78rem;">
-                        Период: {{ fact_1c.periods }}
+                        {% if fact_1c.has_metadata %}Основной лист: {{ fact_1c.rows }} строк × {{ fact_1c.cols }} столбцов.<br>
+                        Листов: {{ fact_1c.sheets_count }} ({{ fact_1c.sheet_names }})<br>
+                        Период: {{ fact_1c.periods }}{% else %}Сведения о структуре файла пока не сохранены.{% endif %}
                     </div>
                     <div class="mt-2">
                         <span class="badge bg-info text-dark">Количество × цена за период</span>
@@ -168,9 +170,10 @@
                            name="file_1c"
                            class="form-control form-control-sm"
                            accept=".xlsx"
-                           title="Новый файл заменит текущий только после успешной проверки"
+                           {% if fact_1c %}disabled aria-disabled="true"{% endif %}
+                           title="{% if fact_1c %}Сначала удалите текущий файл{% else %}Выберите файл для загрузки{% endif %}"
                            onchange="this.form.submit()">
-                    <div class="form-text">Только .xlsx, до 25 МБ. Новый файл сначала проходит проверку.</div>
+                    <div class="form-text">{% if fact_1c %}Файл уже загружен. Для замены сначала удалите его.{% else %}Только .xlsx, до 25 МБ. Новый файл сначала проходит проверку.{% endif %}</div>
                 </form>
             </div>
         </div>
@@ -198,10 +201,12 @@
                     <div class="meta-tooltip-header">Информация о файле</div>
                     <div><strong>Имя:</strong> {{ slot.info.display_name }}</div>
                     <div><strong>Размер:</strong> {{ slot.info.size }}</div>
-                    <div><strong>Строк:</strong> {{ slot.info.rows }}</div>
-                    <div><strong>Столбцов:</strong> {{ slot.info.cols }}</div>
+                    {% if slot.info.has_metadata %}
+                    <div><strong>Строк, максимум на листе:</strong> {{ slot.info.rows }}</div>
+                    <div><strong>Столбцов, максимум на листе:</strong> {{ slot.info.cols }}</div>
                     <div><strong>Листов:</strong> {{ slot.info.sheets_count }} ({{ slot.info.sheet_names }})</div>
                     <div><strong>Периоды:</strong> {{ slot.info.periods }}</div>
+                    {% else %}<div>Сведения о структуре файла пока не сохранены.</div>{% endif %}
                     <div class="mt-1 pt-1 border-top border-secondary text-white-50" style="font-size: 0.72rem;">
                         Загружен: {{ slot.info.modified }}
                     </div>
@@ -250,9 +255,10 @@
                                name="file_manager_{{ slot.id }}"
                                class="form-control form-control-sm"
                                accept=".xlsx"
-                               title="Новый файл заменит текущий только после успешной проверки"
+                               {% if slot.is_uploaded %}disabled aria-disabled="true"{% endif %}
+                               title="{% if slot.is_uploaded %}Сначала удалите текущий файл{% else %}Выберите файл для загрузки{% endif %}"
                                onchange="this.form.submit()">
-                        <div class="form-text">Только .xlsx, до 25 МБ.</div>
+                        <div class="form-text">{% if slot.is_uploaded %}Файл уже загружен. Для замены сначала удалите его.{% else %}Только .xlsx, до 25 МБ.{% endif %}</div>
                     </form>
                 </div>
 

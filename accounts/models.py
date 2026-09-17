@@ -4,6 +4,23 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 
+class SalesManager(models.Model):
+    key = models.SlugField(max_length=64, unique=True, editable=False)
+    name = models.CharField(max_length=255, verbose_name='Имя менеджера')
+    department = models.CharField(max_length=120, blank=True, verbose_name='Отдел')
+    user = models.OneToOneField(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='sales_manager')
+    legacy_username = models.CharField(max_length=150, blank=True)
+    aliases = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name', 'key']
+
+    def __str__(self):
+        return self.name
+
+
 class Profile(models.Model):
     ROLE_CHOICES = [
         ('manager', 'Менеджер'),

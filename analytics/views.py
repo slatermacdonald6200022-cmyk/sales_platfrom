@@ -33,6 +33,7 @@ from uploads.views import (
     user_can_access_manager,
 )
 from .models import ProcessingRun
+from .current_results import current_run, result_path
 
 DATA_DIR = Path(settings.BASE_DIR) / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -42,14 +43,14 @@ MANAGER_REPORTS_DIR = DATA_DIR / "processed" / "manager_reports"
 
 def get_user_manager_reports(user):
     """Возвращает только доступные пользователю результаты обработки."""
-    manager_files, _ = scan_raw_directory(str(RAW_DIR))
+    run = current_run()
+    if not run:
+        return []
     reports = []
     for manager in MANAGERS_LIST:
-        if manager['id'] not in manager_files or not user_can_access_manager(user, manager):
+        if not user_can_access_manager(user, manager):
             continue
-        report_path = get_latest_manager_report(MANAGER_REPORTS_DIR, manager['id'])
-        source_path = RAW_DIR / manager_files[manager['id']]['stored_filename']
-        if report_path and source_path.exists() and report_path.stat().st_mtime >= source_path.stat().st_mtime:
+        if result_path(run.manager_reports.get(manager['id'])):
             reports.append({'id': manager['id'], 'name': manager['name']})
     return reports
 
@@ -63,9 +64,10 @@ def get_latest_final_file():
 
 
 def get_current_combined_file():
-    final = get_latest_final_file()
+    run = current_run()
+    final = result_path(run.final_file) if run else None
     path = final.with_name('COMBINED_MANAGER_FACTS.xlsx') if final else None
-    return path if path and combined_is_current(path, RAW_DIR) else None
+    return path if path and path.is_file() else None
 
 
 @login_required
@@ -121,7 +123,8 @@ def processing_page_view(request):
     missing_managers, has_1c, uploaded_count = get_missing_files()
     all_files_ready = (len(missing_managers) == 0) and has_1c
 
-    latest_file = get_latest_final_file() if can_view_final else None
+    run = current_run() if can_view_final else None
+    latest_file = result_path(run.final_file) if run else None
     file_exists = latest_file is not None and latest_file.exists()
 
     columns = []
@@ -185,7 +188,7 @@ def run_etl_api(request):
         missing_str = ", ".join(missing_managers)
         return JsonResponse({
             'status': 'error',
-            'message': f'Загружено {uploaded_count} из 10 файлов. Не хватает файлов менеджеров: {missing_str}.'
+            'message': f'Загружено {uploaded_count} из {len(MANAGERS_LIST)} файлов. Не хватает файлов менеджеров: {missing_str}.'
         }, status=400)
 
     processing_run = ProcessingRun.objects.create(user=request.user)
@@ -446,9 +449,10 @@ def download_final_excel(request):
     """Скачивание сформированного файла FINAL_SALES_FACT_TABLE.xlsx."""
     if not can_view_final_dataset(request.user):
         raise PermissionDenied('Итоговая таблица доступна только аналитику и администратору.')
-    latest_file = get_latest_final_file()
+    run = current_run()
+    latest_file = result_path(run.final_file) if run else None
     if not latest_file or not latest_file.exists():
-        raise Http404("Итоговый файл не найден.")
+        raise Http404("Текущий набор файлов ещё не обработан. Прошлые результаты доступны в истории.")
 
     with open(latest_file, 'rb') as fh:
         response = HttpResponse(fh.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

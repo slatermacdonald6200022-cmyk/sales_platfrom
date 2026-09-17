@@ -12,6 +12,10 @@
 <summary aria-labelledby="label-{{ filter.key }}"><span class="selection-count">{% if filter.count %}Выбрано: {{ filter.count }}{% else %}Все{% endif %}</span></summary>
 <div class="filter-popup"><input type="search" class="form-control form-control-sm mb-2 filter-search" placeholder="Поиск" aria-label="Поиск: {{ filter.title }}">
 <button type="button" class="btn btn-link btn-sm clear-filter">Снять выбор</button>
+<button type="button" class="btn btn-link btn-sm select-all-filter">{% if filter.key == 'period' %}За всё время{% else %}Выбрать все{% endif %}</button>
+{% if filter.key == 'period' %}<div class="border-bottom pb-2 mb-2 year-options">
+{% for year in filter.years %}<label class="d-block"><input type="checkbox" class="year-choice" data-year="{{ year }}"> {{ year }} год</label>{% endfor %}
+</div>{% endif %}
 <div class="filter-options">{% for option in filter.options %}
 <label class="filter-option" {% if not option.available and not option.selected %}hidden{% endif %}>
 <input type="checkbox" name="{{ filter.key }}" value="{{ option.value }}" aria-label="{{ option.label }}" {% if option.selected %}checked{% endif %}><span>{{ option.label }}</span></label>
@@ -71,7 +75,11 @@
 (() => {
 const rows=JSON.parse(document.getElementById('facet-data').textContent);
 const filters=Array.from(document.querySelectorAll('.sales-filter'));
-const chosen=()=>filters.map(f=>new Set(Array.from(f.querySelectorAll('input:checked')).map(c=>c.value)));
+const chosen=()=>filters.map(f=>new Set(Array.from(f.querySelectorAll('input[name]:checked')).map(c=>c.value)));
+function allowedValues(index){
+const selected=chosen();
+return new Set(rows.filter(row=>selected.every((set,j)=>index===j||!set.size||set.has(row[j]))).map(row=>row[index]));
+}
 function refresh(){
 const selected=chosen();let conflicts=false;
 filters.forEach((filter,i)=>{
@@ -85,10 +93,32 @@ if(input.checked&&!valid)conflicts=true;if(!label.hidden)visible++;
 });
 filter.querySelector('.selection-count').textContent=selected[i].size?'Выбрано: '+selected[i].size:'Все';
 filter.querySelector('.filter-empty').hidden=visible>0;
+filter.querySelector('.select-all-filter').disabled=allowed.size===0;
+filter.querySelectorAll('.year-choice').forEach(input=>{
+const months=Array.from(allowed).filter(value=>value.startsWith(input.dataset.year+'-'));
+const count=months.filter(value=>selected[i].has(value)).length;
+input.disabled=!months.length;
+input.checked=months.length>0&&count===months.length;
+input.indeterminate=count>0&&count<months.length;
+});
 });
 document.getElementById('filterHint').textContent=conflicts?'Выбранные значения не имеют общих данных. Снимите несовместимые значения, выделенные цветом.':'';
 }
 filters.forEach(filter=>{
+const index=filters.indexOf(filter);
+filter.querySelector('.select-all-filter').addEventListener('click',()=>{
+const allowed=allowedValues(index);
+filter.querySelectorAll('input[name]').forEach(input=>input.checked=allowed.has(input.value));
+filter.querySelector('.filter-search').value='';
+refresh();
+});
+filter.querySelectorAll('.year-choice').forEach(year=>year.addEventListener('change',()=>{
+const allowed=allowedValues(index),checked=year.checked;
+filter.querySelectorAll('input[name]').forEach(input=>{
+if(input.value.startsWith(year.dataset.year+'-')&&(allowed.has(input.value)||!checked))input.checked=checked;
+});
+refresh();
+}));
 filter.addEventListener('toggle',()=>{if(filter.open)filters.forEach(other=>{if(other!==filter)other.open=false;});});
 filter.addEventListener('keydown',event=>{if(event.key==='Escape')filter.open=false;});
 filter.addEventListener('change',refresh);

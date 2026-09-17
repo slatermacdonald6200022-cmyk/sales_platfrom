@@ -150,6 +150,9 @@ def merge_plans_with_1c(plans_df, actuals_1c_df, existing_facts_df=None):
 
 
 def create_full_snapshot(raw_dir="data/raw", date_str=None):
+    from uploads.input_state import input_state
+    batch_state = input_state(raw_dir)
+    from accounts.manager_registry import active_source
     if date_str is None:
         date_str = datetime.date.today().strftime("%Y-%m-%d")
 
@@ -180,7 +183,7 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     actual_files = []
     report_periods = set()
     for f in os.listdir(raw_dir):
-        if (f.startswith("fact_1c_") or "1c" in f.lower() or "факт" in f.lower()) and (
+        if not f.startswith("plan_") and (f.startswith("fact_1c_") or "1c" in f.lower() or "факт" in f.lower()) and (
                 f.endswith(".xlsx") or f.endswith(".xls")):
             file_1c_path = os.path.join(raw_dir, f)
             print(f"📖 Чтение отчета 1С: {f}")
@@ -253,7 +256,7 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
         'actual_files': actual_files,
         'source_files': sorted(
             filename for filename in os.listdir(raw_dir)
-            if filename.startswith('plan_') and filename.lower().endswith(('.xlsx', '.xlsm'))
+            if filename.startswith('plan_') and filename.lower().endswith(('.xlsx', '.xlsm')) and active_source(filename)
         ) + actual_files,
         'total_actual_rows': matching_report.get('total_rows', 0),
         'matched_rows': matching_report.get('matched_rows', 0),
@@ -274,6 +277,9 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     temporary_final = final_path.with_name('FINAL.pending.xlsx')
     plans_df.to_excel(temporary_snapshot, index=False)
     final_df.to_excel(temporary_final, index=False)
+    if input_state(raw_dir) != batch_state:
+        raise ValueError('Исходные файлы или список менеджеров изменились во время обработки. Запустите обработку заново.')
+    (final_dir / 'input_state.json').write_text(json.dumps(batch_state, ensure_ascii=False), encoding='utf-8')
     os.replace(temporary_snapshot, snap_file)
     os.replace(temporary_final, final_path)
 

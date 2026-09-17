@@ -29,7 +29,7 @@ def merge(plans_df, actuals_df, history=None):
     from .snapshot_engine import clean_key, clean_client_key, parse_period_key, filter_1c_trash, is_ushakov_client, MONTH_NAMES_RU
     plans = plans_df.copy().reset_index(drop=True)
     actuals = filter_1c_trash(actuals_df.copy()) if actuals_df is not None else pd.DataFrame()
-    ushakov = plans['Менеджер'].astype(str).str.contains('Ушаков', case=False, na=False)
+    ushakov = plans['Клиент'].eq('Клиенты Ушакова (Пул)') | plans['Менеджер'].astype(str).str.contains('Ушаков', case=False, na=False)
     pool_names = []
     if '_Исходные клиенты' in plans:
         for value in plans.loc[ushakov, '_Исходные клиенты'].dropna().unique():

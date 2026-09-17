@@ -128,7 +128,8 @@ def build_context(frame, params, final_file, reporting, include_deviations=True)
             elif key == 'period' and len(value) == 7 and value[4] == '-' and value[5:].isdigit() and 1 <= int(value[5:]) <= 12:
                 label = f'{MONTHS[int(value[5:]) - 1]} {value[:4]}'
             options.append({'value': value, 'label': label, 'selected': value in selected[key], 'available': value in available[key]})
-        filters.append({'key': key, 'title': titles[key], 'options': options, 'count': len(selected[key])})
+        filters.append({'key': key, 'title': titles[key], 'options': options, 'count': len(selected[key]),
+                        'years': sorted({value[:4] for value in all_options['period']}) if key == 'period' else []})
     current = apply_filters(df, selected)
     entity = apply_filters(df, {**selected, 'period': []})
     years = sorted(current['Год'].unique())

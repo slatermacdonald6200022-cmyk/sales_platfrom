@@ -501,7 +501,7 @@ class RoleAccessTests(TestCase):
             self.assertTrue(old_file.exists())
             self.assertEqual(old_file.read_bytes(), b'previous-file')
 
-    def test_valid_upload_replaces_previous_manager_file(self):
+    def test_valid_upload_cannot_replace_previous_manager_file(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             raw_dir = Path(temp_dir) / 'data' / 'raw'
             raw_dir.mkdir(parents=True)
@@ -518,7 +518,55 @@ class RoleAccessTests(TestCase):
             saved_files = list(raw_dir.glob('plan_redko_*.xlsx'))
             self.assertEqual(response.status_code, 302)
             self.assertEqual(len(saved_files), 1)
-            self.assertEqual(saved_files[0].name, 'plan_redko_new_plan.xlsx')
-            self.assertFalse(old_file.exists())
+            self.assertEqual(saved_files[0].name, 'plan_redko_previous.xlsx')
+            self.assertEqual(old_file.read_bytes(), b'previous-file')
 
-# Create your tests here.
+    def test_actual_upload_is_disabled_until_existing_file_deleted(self):
+        import re
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / 'data' / 'raw'
+            raw_dir.mkdir(parents=True)
+            old_file = raw_dir / 'fact_1c_previous.xlsx'
+            old_file.write_bytes(b'previous-file')
+            self.client.force_login(self.analyst)
+            with override_settings(BASE_DIR=Path(temp_dir)):
+                response = self.client.post(reverse('upload_files'), {'file_1c': actual_upload_with_period(name='new.xlsx')})
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(old_file.read_bytes(), b'previous-file')
+                self.assertFalse((raw_dir / 'fact_1c_new.xlsx').exists())
+                page = self.client.get(reverse('upload_files')).content.decode()
+                self.assertIn('disabled', re.search(r'<input[^>]*name="file_1c"[^>]*>', page).group())
+                old_file.unlink()
+                page = self.client.get(reverse('upload_files')).content.decode()
+                self.assertNotIn('disabled', re.search(r'<input[^>]*name="file_1c"[^>]*>', page).group())
+                self.client.post(reverse('upload_files'), {'file_1c': actual_upload_with_period(name='new.xlsx')})
+                self.assertTrue((raw_dir / 'fact_1c_new.xlsx').exists())
+
+    def test_manager_input_disabled_and_empty_slot_accepts_upload(self):
+        import re
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / 'data' / 'raw'
+            raw_dir.mkdir(parents=True)
+            self.client.force_login(self.analyst)
+            with override_settings(BASE_DIR=Path(temp_dir)):
+                self.client.post(reverse('upload_files'), {'file_manager_redko': valid_manager_upload('first.xlsx')})
+                original = raw_dir / 'plan_redko_first.xlsx'
+                before = original.read_bytes()
+                page = self.client.get(reverse('upload_files')).content.decode()
+                self.assertIn('disabled', re.search(r'<input[^>]*name="file_manager_redko"[^>]*>', page).group())
+                self.assertNotIn('disabled', re.search(r'<input[^>]*name="file_manager_tsarev"[^>]*>', page).group())
+                self.client.post(reverse('upload_files'), {'file_manager_redko': valid_manager_upload('first.xlsx')})
+                self.assertEqual(original.read_bytes(), before)
+
+
+class UploadSlotLockTests(SimpleTestCase):
+    def test_parallel_submission_is_rejected_without_removing_other_lock(self):
+        from uploads.views import save_to_empty_slot
+        with tempfile.TemporaryDirectory() as folder:
+            lock = Path(folder) / '.slot-redko.lock'
+            lock.touch()
+            destination = Path(folder) / 'plan_redko_new.xlsx'
+            with self.assertRaises(FileExistsError):
+                save_to_empty_slot(valid_manager_upload(), destination, 'redko')
+            self.assertTrue(lock.exists())
+            self.assertFalse(destination.exists())

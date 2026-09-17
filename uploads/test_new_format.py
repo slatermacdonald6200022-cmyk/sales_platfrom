@@ -2,7 +2,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
-from django.test import SimpleTestCase
+from django.test import TestCase
 from openpyxl import Workbook, load_workbook
 import pandas as pd
 
@@ -35,7 +35,7 @@ def plan_rows():
         for month in [1, 9]])
 
 
-class NewFormatTests(SimpleTestCase):
+class NewFormatTests(TestCase):
     def test_diagnostics_show_article_candidates_without_matching_wrong_code(self):
         plans = plan_rows().iloc[[1]].copy()
         plans['_Исходная строка'] = 18

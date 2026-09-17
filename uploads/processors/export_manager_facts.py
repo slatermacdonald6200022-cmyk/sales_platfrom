@@ -132,6 +132,7 @@ def update_manager_workbook(source_path, destination_path, fact_lookup, manager_
     workbook = load_workbook(source_path, data_only=False, keep_links=True)
     updated_cells = 0
     updates = {}
+    manager_key = clean_key(extract_manager_from_filename(source_path.name))
 
     try:
         for sheet_name in workbook.sheetnames:
@@ -163,7 +164,7 @@ def update_manager_workbook(source_path, destination_path, fact_lookup, manager_
                     class_value = clean_key(sheet.cell(row_idx, layout['class_col']).value) if layout['class_col'] else ''
                     index_value = clean_key(sheet.cell(row_idx, layout['index_col']).value) if layout['index_col'] else ''
                     lookup_key = (client_key, product_key, month_key,
-                                  clean_key(extract_manager_from_filename(source_path.name)), class_value, index_value)
+                                  manager_key, class_value, index_value)
                     if lookup_key not in fact_lookup:
                         continue
                     updates.setdefault(sheet_name, {})[sheet.cell(row_idx, col_idx).coordinate] = fact_lookup[lookup_key]
@@ -187,6 +188,9 @@ def export_all_manager_fact_files(raw_dir, final_df, date_str, periods=None):
 
     for source_path in raw_path.iterdir():
         filename = source_path.name
+        from accounts.manager_registry import active_source
+        if not active_source(filename):
+            continue
         if not source_path.is_file() or not filename.startswith('plan_') or source_path.suffix.lower() not in {'.xlsx', '.xlsm'}:
             continue
 
