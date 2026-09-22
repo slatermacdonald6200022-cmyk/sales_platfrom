@@ -175,6 +175,7 @@ def dashboard_view(request, deviations_page=False):
         context['reset_url'] = reverse('sales_deviations' if deviations_page else 'dashboard')
         query = request.GET.copy()
         query.pop('page', None)
+        query.pop('deviation_basis', None)
         context['filter_query'] = query.urlencode()
         if deviations_page:
             page = Paginator(context['anomalies']['rows'], 50).get_page(request.GET.get('page'))

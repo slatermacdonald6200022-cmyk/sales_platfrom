@@ -171,6 +171,7 @@
         </div>
     </div>
     {% endif %}
+    {% if all_files_ready and not has_1c and is_admin %}<div class="alert alert-info">Файл факта не загружен. Можно построить отчёт только по планам и прогнозам.</div>{% endif %}
 
 </div>
 
@@ -325,3 +326,4 @@
     }
 </script>
 {% endblock %}
+

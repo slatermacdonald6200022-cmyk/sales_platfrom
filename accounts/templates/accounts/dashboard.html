@@ -1,8 +1,8 @@
 {% extends "accounts/base.html" %}
-{% block title %}{% if is_deviations_page %}Отклонения от плана{% else %}Отчёты{% endif %} | Планирование продаж{% endblock %}
+{% block title %}{% if is_deviations_page %}Отклонения от {% if deviation_basis == 'forecast' %}прогноза{% else %}плана{% endif %}{% else %}Отчёты{% endif %} | Планирование продаж{% endblock %}
 {% block content %}
 <div class="container-fluid page-shell">
-<div class="page-header"><div><h1 class="page-title">{% if is_deviations_page %}Отклонения от плана{% else %}Отчёты{% endif %}</h1><p class="page-description">{% if is_deviations_page %}Подробная проверка по менеджерам, клиентам и товарам.{% else %}План, прогноз и фактические продажи.{% endif %}</p></div>
+<div class="page-header"><div><h1 class="page-title">{% if is_deviations_page %}Отклонения от {% if deviation_basis == 'forecast' %}прогноза{% else %}плана{% endif %}{% else %}Отчёты{% endif %}</h1><p class="page-description">{% if is_deviations_page %}Подробная проверка по менеджерам, клиентам и товарам.{% else %}План, прогноз и фактические продажи.{% endif %}</p></div>
 {% if has_data %}<a class="btn btn-outline-primary" href="{% if is_deviations_page %}{% url 'dashboard' %}{% else %}{% url 'sales_deviations' %}{% endif %}{% if filter_query %}?{{ filter_query }}{% endif %}">{% if is_deviations_page %}Вернуться к отчётам{% else %}Посмотреть отклонения{% endif %}</a>{% endif %}</div>
 {% if not has_data %}<div class="alert alert-secondary">{{ message }}</div>{% else %}
 <form method="get" id="filterForm" class="card panel-card p-3 mb-4">
@@ -43,8 +43,8 @@
 <div class="col-md-4"><div class="card panel-card p-3"><small>Факт / план с начала года</small><strong>{{ kpi.pct_ytd_aop }}</strong></div></div>
 <div class="col-md-4"><div class="card panel-card p-3"><small>Факт / прогноз с начала года</small><strong>{{ kpi.pct_ytd_forecast }}</strong></div></div></div>
 {% else %}
-<section class="card panel-card p-4 mb-4"><h2 class="h5">Отклонения от плана: {{ anomalies.count }}</h2>
-<p class="text-muted small">{{ anomalies.rule }} Сравнение с AOP, по месяцам с загруженными фактами. Это места возникновения разницы, а не причины продаж.</p>
+<section class="card panel-card p-4 mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2"><h2 class="h5 mb-0">Отклонения от {{ anomalies.basis_label }}: {{ anomalies.count }}</h2><div class="btn-group btn-group-sm" role="group" aria-label="Основа сравнения"><a class="btn {% if deviation_basis == 'aop' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}deviation_basis=aop">План</a><a class="btn {% if deviation_basis == 'forecast' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}deviation_basis=forecast">Прогноз</a></div></div>
+<p class="text-muted small">{{ anomalies.rule }} Сравнение с выбранной основой по месяцам с загруженными фактами. Это места возникновения разницы, а не причины продаж.</p>
 {% if anomalies.unknown_periods %}<p class="text-muted small">Не проверялись месяцы без подтверждённых фактов: {{ anomalies.unknown_periods|join:", " }}.</p>{% endif %}
 <div class="row g-3 mb-3">{% for group in anomalies.contributors %}<div class="col-md-4"><h3 class="h6">{{ group.title }}: наибольшая разница</h3>
 {% for row in group.rows %}<div class="d-flex justify-content-between gap-2 small py-1"><span>{{ row.name }}</span><strong class="text-nowrap">{{ row.delta }}</strong></div>{% empty %}<small class="text-muted">Нет отклонений.</small>{% endfor %}</div>{% endfor %}</div>

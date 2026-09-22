@@ -36,6 +36,20 @@ def plan_rows():
 
 
 class NewFormatTests(TestCase):
+    def test_plans_only_snapshot_is_allowed(self):
+        from .processors.snapshot_engine import create_full_snapshot
+        plans = plan_rows().iloc[[1]].copy()
+        with tempfile.TemporaryDirectory() as folder:
+            raw = Path(folder) / 'raw'
+            raw.mkdir()
+            with patch('uploads.processors.snapshot_engine.normalize_all_managers', return_value=plans), \
+                 patch('uploads.processors.snapshot_engine.export_all_manager_fact_files', return_value={}), \
+                 patch('uploads.processors.snapshot_engine.export_combined_report', return_value={'rows': 0}):
+                result = create_full_snapshot(str(raw), 'plans_only')
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result['Факт, шт'].sum(), 0)
+        self.assertEqual(result.attrs['processing_info']['report_period'], '2026-09')
+
     def test_diagnostics_show_article_candidates_without_matching_wrong_code(self):
         plans = plan_rows().iloc[[1]].copy()
         plans['_Исходная строка'] = 18

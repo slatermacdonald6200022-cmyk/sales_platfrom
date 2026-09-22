@@ -66,7 +66,7 @@ def facet_options(df, selected):
             for key, col in FIELDS.items()}
 
 
-def deviations(df, known_periods):
+def deviations(df, known_periods, basis='aop'):
     low = float(getattr(settings, 'SALES_DEVIATION_LOW_RATIO', .5))
     high = float(getattr(settings, 'SALES_DEVIATION_HIGH_RATIO', 2.0))
     minimum = float(getattr(settings, 'SALES_DEVIATION_MIN_CNY', 1000))
@@ -74,11 +74,12 @@ def deviations(df, known_periods):
     missing = ((eligible[PRICE] <= 0) & ((eligible[QUANTITY] != 0).any(axis=1)))
     eligible = eligible.loc[~missing]
     keys = ['Менеджер', 'Клиент', 'Артикул', 'Класс товара', 'Производственный индекс', '_period']
-    grouped = eligible.groupby(keys, as_index=False).agg({'AOP, CNY': 'sum', 'Факт, CNY': 'sum', 'Наименование': 'first'})
-    grouped['delta'] = grouped['Факт, CNY'] - grouped['AOP, CNY']
+    basis_col = 'Прогноз, CNY' if basis == 'forecast' else 'AOP, CNY'
+    grouped = eligible.groupby(keys, as_index=False).agg({'AOP, CNY': 'sum', 'Прогноз, CNY': 'sum', 'Факт, CNY': 'sum', 'Наименование': 'first'})
+    grouped['delta'] = grouped['Факт, CNY'] - grouped[basis_col]
     found = []
     for row in grouped.to_dict('records'):
-        plan, actual = row['AOP, CNY'], row['Факт, CNY']
+        plan, actual = row[basis_col], row['Факт, CNY']
         delta = actual - plan
         reason = ''
         if plan > 0 and actual == 0:
@@ -99,11 +100,12 @@ def deviations(df, known_periods):
     contributors = []
     for col, title in [('Менеджер', 'Менеджеры'), ('Клиент', 'Клиенты'), ('Артикул', 'Товары')]:
         contribution = grouped.groupby(col)['delta'].sum()
-        contribution = contribution.loc[contribution.abs().sort_values(ascending=False).index].head(5)
+        contribution = contribution.loc[contribution.abs().sort_values(ascending=False).index].head(20)
         contributors.append({'title': title, 'rows': [{'name': str(name), 'delta': money(value)}
                                                      for name, value in contribution.items() if value != 0]})
     return {'rows': found, 'count': len(found), 'contributors': contributors,
-            'rule': f'Ниже {low:.0%} или выше {high:.0%} плана при разнице от {money(minimum)}; нулевые продажи и продажи без плана — всегда.',
+            'basis': basis, 'basis_label': 'прогноза' if basis == 'forecast' else 'плана',
+            'rule': f'Ниже {low:.0%} или выше {high:.0%} {"прогноза" if basis == "forecast" else "плана"} при разнице от {money(minimum)}; нулевые продажи и продажи без основы — всегда.',
             'unknown_periods': sorted(set(df['_period']) - set(known_periods))}
 
 
@@ -111,6 +113,7 @@ def build_context(frame, params, final_file, reporting, include_deviations=True)
     df = prepare_frame(frame)
     report_key = f'{reporting[0]:04d}-{reporting[1]:02d}'
     selected = selections(params, df, report_key)
+    deviation_basis = 'forecast' if params.get('deviation_basis') == 'forecast' else 'aop'
     # Нулевые структурные месяцы нужны для соединения, но не расширяют фильтры.
     active = df[(df[MONEY + QUANTITY] != 0).any(axis=1)]
     available = facet_options(active, selected)
@@ -167,7 +170,8 @@ def build_context(frame, params, final_file, reporting, include_deviations=True)
     missing = (current[PRICE] <= 0) & ((current[QUANTITY] != 0).any(axis=1))
     return {'has_data': True, 'filters': filters, 'selected': selected, 'kpi': kpi, 'chart': chart,
             'facet_rows': active[list(FIELDS.values())].drop_duplicates().values.tolist(),
-            'anomalies': deviations(current, known) if include_deviations else None, 'missing_prices': int(missing.sum()),
+            'deviation_basis': deviation_basis,
+            'anomalies': deviations(current, known, deviation_basis) if include_deviations else None, 'missing_prices': int(missing.sum()),
             'unmatched_count': unmatched, 'empty_selection': current.empty,
             'reporting_period_label': f'{MONTHS[reporting[1] - 1]} {reporting[0]}',
             'dyn_managers': json.dumps(chart['managers'], ensure_ascii=False)}

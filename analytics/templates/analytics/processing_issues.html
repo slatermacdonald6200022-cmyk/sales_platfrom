@@ -8,6 +8,7 @@
     <a class="btn btn-outline-secondary" href="{% url 'processing_run_detail' run.id %}">К обработке</a>
   </div>
   {% if warning %}<div class="alert alert-warning">{{ warning }}</div>{% endif %}
+  {% if messages %}{% for message in messages %}<div class="alert alert-success">{{ message }}</div>{% endfor %}{% endif %}
   {% if legacy %}<div class="alert alert-light border">Для этой обработки подробные варианты строк не сохранялись. Здесь показан её прежний список несоответствий. Чтобы получить сравнение кодов и цен, выполните новую обработку актуальных файлов.</div>{% endif %}
   <form method="get" class="card panel-card p-3 mb-4">
     <div class="row g-3 align-items-end">
@@ -26,6 +27,7 @@
       <small>Класс: {{ item.product_class|default:"не указан" }} · индекс: {{ item.production_index|default:"не указан" }}</small></div>
     {% if item.candidates %}
     <p class="small text-muted">{{ item.candidate_basis }}</p>
+    {% if item.manual_mapping_saved %}<div class="alert alert-success py-2 small">Для этой строки уже сохранено ручное сопоставление. Можно выбрать другой вариант или удалить сохранённое решение.</div>{% endif %}
     <div class="table-responsive"><table class="table table-sm align-middle">
       <thead><tr><th>Менеджер / клиент</th><th>Артикул / код в плане</th><th>Класс / индекс</th><th>Цена, CNY</th><th>АОП, шт</th><th>Прогноз, шт</th><th>Где искать</th></tr></thead>
       <tbody>{% for candidate in item.candidates %}<tr>
@@ -34,7 +36,7 @@
         <td>{{ candidate.product_class|default:"не указан" }} / {{ candidate.production_index|default:"не указан" }}</td>
         <td>{{ candidate.price|default_if_none:"Не указана" }}</td>
         <td>{{ candidate.aop_quantity|default_if_none:"—" }}</td><td>{{ candidate.forecast_quantity|default_if_none:"—" }}</td>
-        <td><small>{{ candidate.source_file|default:"—" }}<br>Лист: {{ candidate.source_sheet|default:"—" }} · строка {{ candidate.source_row|default_if_none:"—" }}</small></td>
+        <td><small>{{ candidate.source_file|default:"—" }}<br>Лист: {{ candidate.source_sheet|default:"—" }} · строка {{ candidate.source_row|default_if_none:"—" }}</small><form method="post" action="{% url 'save_manual_mapping' run.id %}" class="mt-2 d-inline">{% csrf_token %}<input type="hidden" name="mapping_key" value="{{ item.mapping_key }}"><input type="hidden" name="client" value="{{ candidate.client }}"><input type="hidden" name="article" value="{{ candidate.article }}"><input type="hidden" name="code" value="{{ candidate.product_code }}"><input type="hidden" name="period" value="{{ item.period }}"><input type="hidden" name="product_class" value="{{ candidate.product_class }}"><input type="hidden" name="production_index" value="{{ candidate.production_index }}"><button class="btn btn-sm btn-outline-primary" type="submit">Выбрать эту строку</button></form>{% if item.manual_mapping_saved %}<form method="post" action="{% url 'delete_manual_mapping' run.id %}" class="mt-2 d-inline">{% csrf_token %}<input type="hidden" name="mapping_key" value="{{ item.mapping_key }}"><button class="btn btn-sm btn-outline-danger" type="submit">Удалить выбор</button></form>{% endif %}</td>
       </tr>{% endfor %}</tbody>
     </table></div>
     {% elif not legacy %}<p class="text-muted mb-0">Строки для сравнения по клиенту и товару за этот период не найдены. Проверьте состав плана и название клиента.</p>{% endif %}

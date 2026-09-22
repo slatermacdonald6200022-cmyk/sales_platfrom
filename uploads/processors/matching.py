@@ -24,10 +24,11 @@ class HistoryMappingError(ValueError):
         )
 
 
-def merge(plans_df, actuals_df, history=None):
+def merge(plans_df, actuals_df, history=None, manual_mappings=None):
     """Archive argument is accepted for compatibility but never used as input."""
     from .snapshot_engine import clean_key, clean_client_key, parse_period_key, filter_1c_trash, is_ushakov_client, MONTH_NAMES_RU
     plans = plans_df.copy().reset_index(drop=True)
+    manual_mappings = manual_mappings or {}
     actuals = filter_1c_trash(actuals_df.copy()) if actuals_df is not None else pd.DataFrame()
     ushakov = plans['Клиент'].eq('Клиенты Ушакова (Пул)') | plans['Менеджер'].astype(str).str.contains('Ушаков', case=False, na=False)
     pool_names = []
@@ -84,6 +85,25 @@ def merge(plans_df, actuals_df, history=None):
                 indices = [i for i in indices if plans.at[i, '_' + col] == value]
         return indices
 
+    def mapping_key(row):
+        return '|'.join(str(row.get(name, '') or '').strip().casefold()
+                        for name in ['_source_client', '_key_article', '_key_code', '_key_month', 'Факт, шт'])
+
+    def manual_candidates(row):
+        target = manual_mappings.get(mapping_key(row))
+        if not isinstance(target, dict):
+            return []
+        result = list(plans.index)
+        for key, value in {
+            '_key_client_canonical': target.get('client'), '_key_article': target.get('article'),
+            '_key_code': target.get('code'), '_key_month': target.get('period'),
+            '_Класс товара': target.get('product_class'), '_Производственный индекс': target.get('production_index'),
+        }.items():
+            if value not in (None, '') and key in plans:
+                wanted = clean_client_key(pd.Series([value])).iloc[0] if key == '_key_client_canonical' else str(value).strip().casefold()
+                result = [i for i in result if (str(plans.at[i, key]).strip().casefold() == wanted)]
+        return result
+
     checked = []
     diagnostics = []
     current_periods = set()
@@ -127,7 +147,7 @@ def merge(plans_df, actuals_df, history=None):
         canonical_article_pairs = set(zip(plans['_key_client_canonical'], plans['_key_article']))
         canonical_code_pairs = set(zip(plans['_key_client_canonical'], plans['_key_code']))
         for row in grouped.to_dict('records'):
-            indices = candidates(row)
+            indices = manual_candidates(row) or candidates(row)
             reason = ''
             calculated_amount = None
             if len(indices) == 1:
@@ -198,7 +218,7 @@ def merge(plans_df, actuals_df, history=None):
                         return None
                     return v.item() if hasattr(v, 'item') else v
                 diagnostics.append({
-                    'client': row['_source_client'], 'article': row['Артикул'],
+                    'mapping_key': mapping_key(row), 'client': row['_source_client'], 'article': row['Артикул'],
                     'product_code': row[CODE], 'period': row['_key_month'], 'quantity': row['Факт, шт'],
                     'product_class': row['_Класс товара'], 'production_index': row['_Производственный индекс'],
                     'manager': source_values('Менеджер') or 'Не определён',

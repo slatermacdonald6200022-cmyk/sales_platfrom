@@ -4,9 +4,10 @@ import datetime
 import csv
 from pathlib import Path
 import pandas as pd
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse, Http404, FileResponse
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
@@ -22,7 +23,7 @@ from accounts.permissions import (
     ROLE_MANAGER,
 )
 
-from uploads.processors.snapshot_engine import create_full_snapshot
+from uploads.processors.snapshot_engine import create_full_snapshot, clean_key
 from uploads.processors.matching import HistoryMappingError
 from uploads.processors.export_manager_facts import get_latest_manager_report
 from uploads.processors.combined_report import combined_is_current
@@ -121,7 +122,7 @@ def processing_page_view(request):
         raise PermissionDenied('Раздел обработки недоступен для этой роли.')
 
     missing_managers, has_1c, uploaded_count = get_missing_files()
-    all_files_ready = (len(missing_managers) == 0) and has_1c
+    all_files_ready = len(missing_managers) == 0
 
     run = current_run() if can_view_final else None
     latest_file = result_path(run.final_file) if run else None
@@ -178,12 +179,6 @@ def run_etl_api(request):
 
     # Валидация полноты входного пакета
     missing_managers, has_1c, uploaded_count = get_missing_files()
-    if not has_1c:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Не загружен файл с фактическими данными.'
-        }, status=400)
-
     if missing_managers:
         missing_str = ", ".join(missing_managers)
         return JsonResponse({
@@ -397,6 +392,24 @@ def processing_issues(request, run_id):
                      for row in table.to_dict('records')]
     except (OSError, ValueError, KeyError, Http404):
         warning = 'Не удалось прочитать сохранённые сведения. Проверьте наличие файлов этой обработки.'
+    # Старые обработки были созданы до появления mapping_key. Восстанавливаем
+    # его из сохранённых полей, чтобы ручной выбор работал и для них.
+    for item in items:
+        if not item.get('mapping_key'):
+            item['mapping_key'] = '|'.join([
+                str(item.get('client', '') or '').strip().casefold(),
+                clean_key(pd.Series([item.get('article', '')])).iloc[0],
+                clean_key(pd.Series([item.get('product_code', '')])).iloc[0],
+                str(item.get('period', '') or '').strip(),
+                str(item.get('quantity', '') or '').strip(),
+            ])
+    mapping_path = DATA_DIR / 'processed' / 'manual_mappings.json'
+    try:
+        saved_mappings = json.loads(mapping_path.read_text(encoding='utf-8')) if mapping_path.exists() else {}
+    except (OSError, ValueError):
+        saved_mappings = {}
+    for item in items:
+        item['manual_mapping_saved'] = item.get('mapping_key') in saved_mappings
     counts = sorted(Counter(item['reason'] for item in items).items())
     total = len(items)
     reason = request.GET.get('reason', '')
@@ -413,6 +426,51 @@ def processing_issues(request, run_id):
         'counts': counts, 'total': total, 'legacy': legacy, 'warning': warning,
         'selected_reason': reason, 'query': query, 'filter_query': parameters.urlencode(),
     })
+
+
+@login_required
+def save_manual_mapping(request, run_id):
+    """Сохраняет выбранную строку плана для следующего запуска обработки."""
+    if request.method != 'POST' or not can_view_final_dataset(request.user):
+        raise PermissionDenied('Ручное сопоставление доступно аналитику и администратору.')
+    run = get_object_or_404(ProcessingRun, pk=run_id)
+    if not _can_open_run(request.user, run):
+        raise PermissionDenied('Эта запись обработки недоступна.')
+    mapping_key = request.POST.get('mapping_key', '').strip()
+    if not mapping_key:
+        raise Http404('Не указан ключ строки.')
+    path = DATA_DIR / 'processed' / 'manual_mappings.json'
+    try:
+        mappings = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+    except (OSError, ValueError):
+        mappings = {}
+    mappings[mapping_key] = {key: request.POST.get(key, '').strip() for key in
+                             ('client', 'article', 'code', 'period', 'product_class', 'production_index')}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(mappings, ensure_ascii=False, indent=2), encoding='utf-8')
+    messages.success(request, 'Сопоставление сохранено. Запустите обработку заново, чтобы применить его к результату.')
+    return redirect(reverse('processing_issues', args=[run_id]))
+
+
+@login_required
+def delete_manual_mapping(request, run_id):
+    """Удаляет сохранённое ручное решение, не меняя уже созданный архив."""
+    if request.method != 'POST' or not can_view_final_dataset(request.user):
+        raise PermissionDenied('Удаление ручного сопоставления доступно аналитику и администратору.')
+    run = get_object_or_404(ProcessingRun, pk=run_id)
+    if not _can_open_run(request.user, run):
+        raise PermissionDenied('Эта запись обработки недоступна.')
+    mapping_key = request.POST.get('mapping_key', '').strip()
+    path = DATA_DIR / 'processed' / 'manual_mappings.json'
+    try:
+        mappings = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+    except (OSError, ValueError):
+        mappings = {}
+    if mapping_key in mappings:
+        mappings.pop(mapping_key)
+        path.write_text(json.dumps(mappings, ensure_ascii=False, indent=2), encoding='utf-8')
+        messages.success(request, 'Ручное сопоставление удалено. Следующая обработка снова использует автоматическое сопоставление.')
+    return redirect(reverse('processing_issues', args=[run_id]))
 
 
 @login_required

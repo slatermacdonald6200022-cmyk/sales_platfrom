@@ -144,9 +144,9 @@ def extract_existing_facts(final_file_path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def merge_plans_with_1c(plans_df, actuals_1c_df, existing_facts_df=None):
+def merge_plans_with_1c(plans_df, actuals_1c_df, existing_facts_df=None, manual_mappings=None):
     from .matching import merge
-    return merge(plans_df, actuals_1c_df, existing_facts_df)
+    return merge(plans_df, actuals_1c_df, existing_facts_df, manual_mappings=manual_mappings)
 
 
 def create_full_snapshot(raw_dir="data/raw", date_str=None):
@@ -197,22 +197,24 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
 
     all_actuals = pd.concat(actuals_dfs, ignore_index=True) if actuals_dfs else pd.DataFrame()
 
-    if not report_periods:
-        raise ValueError('Не удалось определить отчётный период файла с фактическими данными.')
+    if not report_periods and len(source_periods):
+        report_periods = {max(source_periods)}
     if len(report_periods) != 1:
         periods_label = ', '.join(sorted(report_periods))
         raise ValueError(
             f'Найдены выгрузки за разные отчётные периоды: {periods_label}. '
             'Оставьте файл только за один месяц.'
         )
-    if all_actuals.empty:
-        raise ValueError('В выгрузке не найдено строк с фактическими данными для обработки.')
-
     report_period = next(iter(report_periods))
     report_year, report_month = (int(part) for part in report_period.split('-'))
 
-    # 4. Слияние (строгий LEFT JOIN по ключу YYYY-MM)
-    final_df = merge_plans_with_1c(plans_df, all_actuals)
+    # 4. Слияние. Сохранённые ручные решения применяются к тем же исходным строкам.
+    mappings_path = processed_root / 'manual_mappings.json'
+    try:
+        manual_mappings = json.loads(mappings_path.read_text(encoding='utf-8')) if mappings_path.exists() else {}
+    except (OSError, ValueError):
+        manual_mappings = {}
+    final_df = merge_plans_with_1c(plans_df, all_actuals, manual_mappings=manual_mappings)
 
     final_dir = final_dir_base / date_str
     final_dir.mkdir(parents=True, exist_ok=True)
@@ -242,7 +244,7 @@ def create_full_snapshot(raw_dir="data/raw", date_str=None):
     )
 
     metadata = {
-        'fact_periods': sorted(known_fact_periods | {report_period}),
+        'fact_periods': sorted(known_fact_periods | ({report_period} if actual_files else set())),
         'report_period': report_period,
         'report_year': report_year,
         'report_month': report_month,
