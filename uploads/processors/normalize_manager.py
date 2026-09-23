@@ -33,6 +33,15 @@ MONTH_NUM_TO_NAME = {
     9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
 }
 
+# Поля каталога комплектов. Они добавляются к строкам плана как справочная
+# информация и не меняют количество/стоимость до тех пор, пока факт явно не
+# пришёл по артикулу комплекта.
+BUNDLE_COLUMNS = {
+    'bundle_article': 'Артикул комплекта',
+    'bundle_component_qty': 'Количество в комплекте',
+    'bundle_flag': 'Признак комплекта',
+}
+
 
 def normalize_text(val):
     if pd.isna(val):
@@ -158,6 +167,50 @@ def numeric_cell(value):
         return 0.0
 
 
+def extract_bundle_catalog(df):
+    """Читает нормализованный лист состава комплектов ``S_ВСЕ``.
+
+    Формат файла Прасолова допускает служебные строки перед заголовком, поэтому
+    заголовок ищется по смысловым названиям колонок. Возвращается словарь
+    ``комплект -> {компонент -> количество}``; повреждённые строки пропускаются.
+    """
+    if df is None or df.empty:
+        return {}
+    header = None
+    for i in range(min(len(df), 30)):
+        values = {normalize_text(v).lower().replace('ё', 'е') for v in df.iloc[i]}
+        if any('комплект' in v for v in values) and any('артикул' in v for v in values):
+            header = i
+            break
+    if header is None:
+        return {}
+    columns = [normalize_text(v).lower().replace('ё', 'е') for v in df.iloc[header]]
+    def find(*terms):
+        for idx, value in enumerate(columns):
+            if value in terms:
+                return idx
+        for idx, value in enumerate(columns):
+            if any(term in value for term in terms):
+                return idx
+        return None
+    bundle_col = find('комплект')
+    article_col = find('артикул')
+    qty_col = find('кол-во', 'количество', 'кол.')
+    if bundle_col is None or article_col is None:
+        return {}
+    catalog = {}
+    for values in df.iloc[header + 1:].itertuples(index=False, name=None):
+        if max(bundle_col, article_col) >= len(values):
+            continue
+        bundle = normalize_article(values[bundle_col])
+        component = normalize_article(values[article_col])
+        if not bundle or not component or bundle.lower() in {'nan', 'none'} or component.lower() in {'nan', 'none'}:
+            continue
+        qty = numeric_cell(values[qty_col]) if qty_col is not None and qty_col < len(values) else 1.0
+        catalog.setdefault(bundle, {})[component] = qty or 1.0
+    return catalog
+
+
 def period_price(row, candidates, month):
     year, number = map(int, month.split('-'))
     half = 1 if number <= 6 else 2
@@ -194,7 +247,7 @@ def extract_manager_from_filename(filename):
     return "Неизвестен"
 
 
-def process_manager_sheet(df, filename="", default_manager=""):
+def process_manager_sheet(df, filename="", default_manager="", bundle_catalog=None):
     """Разворачивание одного листа книги менеджера в плоскую таблицу (UNPIVOT)."""
     header_idx = None
     for i in range(min(15, len(df))):
@@ -257,6 +310,12 @@ def process_manager_sheet(df, filename="", default_manager=""):
     is_ushakov = filename.startswith('plan_ushakov_') or "ушаков" in manager_val.lower() or "ушаков" in filename.lower()
 
     records = []
+    bundle_catalog = bundle_catalog or {}
+    bundle_articles = set(bundle_catalog)
+    component_bundles = {}
+    for bundle, components in bundle_catalog.items():
+        for component, qty in components.items():
+            component_bundles.setdefault(component, []).append((bundle, qty))
     for source_row, row in data_df.iterrows():
         art = normalize_article(row.iloc[base_cols['product_article']])
         if not art or art.lower() in ['nan', 'none', 'итого', 'всего', '']:
@@ -273,6 +332,15 @@ def process_manager_sheet(df, filename="", default_manager=""):
 
         supp = normalize_text(row.iloc[supplier_col]) if supplier_col is not None else ""
         prod_name = normalize_text(row.iloc[base_cols['product_name']]) if 'product_name' in base_cols else ""
+        product_class = normalize_text(row.iloc[base_cols['product_class']]) if 'product_class' in base_cols else ''
+        is_bundle = product_class.casefold() == 's' or art in bundle_articles or 'комплект' in prod_name.casefold() or 'набор' in prod_name.casefold()
+        component_qty = ''
+        linked_bundle = ''
+        if art in bundle_articles:
+            component_qty = ''
+            linked_bundle = art
+        elif len(component_bundles.get(art, [])) == 1:
+            linked_bundle, component_qty = component_bundles[art][0]
 
         price_val = 0.0
         if 'price_cny' in base_cols:
@@ -313,8 +381,11 @@ def process_manager_sheet(df, filename="", default_manager=""):
                 'Наименование': prod_name,
                 'Артикул': art,
                 'Код товара': normalize_article(row.iloc[base_cols['product_code']]) if 'product_code' in base_cols else '',
-                'Класс товара': normalize_text(row.iloc[base_cols['product_class']]) if 'product_class' in base_cols else '',
+                'Класс товара': product_class,
                 'Производственный индекс': normalize_article(row.iloc[base_cols['production_index']]) if 'production_index' in base_cols else '',
+                'Признак комплекта': 'Комплект' if is_bundle else ('Компонент комплекта' if linked_bundle else ''),
+                'Артикул комплекта': linked_bundle,
+                'Количество в комплекте': component_qty,
                 'Цена, юань, без НДС 1 п/г 2026': price_val,
                 'Месяц': m_str,
                 'Номер месяца': int(m_num)
@@ -353,12 +424,23 @@ def normalize_all_managers(raw_dir="data/raw"):
             excel_file = pd.ExcelFile(fpath)
             mgr_name = extract_manager_from_filename(fname)
 
+            # Лист S_ВСЕ является справочником состава и не содержит месячных
+            # показателей. Читаем его один раз и прикладываем метаданные к
+            # строкам комплектов на рабочих листах.
+            bundle_catalog = {}
+            bundle_sheet = next((name for name in excel_file.sheet_names if name.strip().casefold() == 's_все'), None)
+            if bundle_sheet:
+                bundle_catalog = extract_bundle_catalog(pd.read_excel(excel_file, sheet_name=bundle_sheet, header=None))
+
             for sheet in excel_file.sheet_names:
+                if sheet.strip().casefold() == 's_все':
+                    continue
                 if any(s in sheet.lower() for s in ['свод', 'итог', 'сводная', 'лист1', 'sheet1']) and len(
                         excel_file.sheet_names) > 1:
                     continue
                 df_sheet = pd.read_excel(excel_file, sheet_name=sheet, header=None)
-                res_df = process_manager_sheet(df_sheet, filename=fname, default_manager=mgr_name)
+                res_df = process_manager_sheet(df_sheet, filename=fname, default_manager=mgr_name,
+                                                bundle_catalog=bundle_catalog)
                 if not res_df.empty:
                     res_df['_Исходный файл'] = fname
                     res_df['_Исходный лист'] = sheet

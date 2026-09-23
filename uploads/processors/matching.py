@@ -4,6 +4,7 @@ import re
 import pandas as pd
 
 EXTRA = ['Класс товара', 'Производственный индекс']
+BUNDLE_FIELDS = ['Признак комплекта', 'Артикул комплекта', 'Количество в комплекте']
 CODE = 'Код товара'
 PRICE = 'Цена, юань, без НДС 1 п/г 2026'
 TARGET = ['AOP, CNY', 'Прогноз, CNY', 'Факт, CNY', 'AOP, шт', 'Прогноз, шт', 'Факт, шт',
@@ -39,6 +40,9 @@ def merge(plans_df, actuals_df, history=None, manual_mappings=None):
     other_clients = set(clean_client_key(plans.loc[~ushakov, 'Клиент']))
     plans.loc[plans['Менеджер'].astype(str).str.contains('Ушаков', case=False, na=False), 'Клиент'] = 'Клиенты Ушакова (Пул)'
     for col in EXTRA:
+        if col not in plans:
+            plans[col] = ''
+    for col in BUNDLE_FIELDS:
         if col not in plans:
             plans[col] = ''
     if CODE not in plans:
@@ -230,6 +234,9 @@ def merge(plans_df, actuals_df, history=None, manual_mappings=None):
                         'article': value(i, 'Артикул'), 'product_code': value(i, CODE),
                         'product_class': value(i, 'Класс товара'),
                         'production_index': value(i, 'Производственный индекс'),
+                        'bundle_flag': value(i, 'Признак комплекта'),
+                        'bundle_article': value(i, 'Артикул комплекта'),
+                        'bundle_component_qty': value(i, 'Количество в комплекте'),
                         'price': value(i, PRICE) if value(i, PRICE) and value(i, PRICE) > 0 else None,
                         'forecast_quantity': value(i, 'Прогноз, шт'), 'aop_quantity': value(i, 'AOP, шт'),
                         'source_file': value(i, '_Исходный файл'), 'source_sheet': value(i, '_Исходный лист'),
@@ -242,7 +249,12 @@ def merge(plans_df, actuals_df, history=None, manual_mappings=None):
     for col in TARGET:
         if col not in plans:
             plans[col] = ''
-    result = plans[TARGET].copy()
+    # Не меняем схему старых/обычных планов. Поля комплекта появляются в
+    # витрине только если хотя бы одна строка действительно распознана как
+    # комплект или его компонент.
+    result_columns = TARGET + [col for col in BUNDLE_FIELDS
+                               if plans[col].astype(str).str.strip().ne('').any()]
+    result = plans[result_columns].copy()
     result.attrs['matching_report'] = {
         'total_rows': len(checked),
         'matched_rows': len(checked) - len(current_unmatched),
